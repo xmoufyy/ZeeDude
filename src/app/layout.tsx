@@ -21,7 +21,6 @@ export const metadata: Metadata = {
     description,
   },
   twitter: { card: "summary_large_image", title: "ZeeDude SolPump Wager Leaderboard", description },
-  icons: { icon: "/brand/zeedude-logo.webp" },
 };
 
 export const viewport: Viewport = {
