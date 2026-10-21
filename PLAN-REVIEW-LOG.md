@@ -132,3 +132,15 @@ User: "Fix the 4 open findings with @next/env loading and the compose change, th
 Plan updated (criteria 4 and 8). New plan SHA256: `0d9e6b6182f0158a283f2ed6e04ea24ebc970483fd9b4b17199f9b9770d9143a`.
 
 Proofs re-run: tsc and eslint clean; `npm test` 88/88 (10 files); `verify:concurrency` 4/4; `verify:postgres` 14/14 PASS, client restored to sqlite; SQLite build plus `npm start` smoke (/, /history, /rules 200 with data); `npm run dev` (predev via load-env) serves 200.
+
+### Inspection 3: fresh Codex session (user-authorized extra round), verdict REVISE
+
+- Result: `scratchpad/claudex/inspect3/claudex-tnsbivdd/result.json`. Session `01a16094-6773-7413-a2fc-516cf016b1b9`, effective model `gpt-6.1-sol` (medium), 69s
+- Snapshot: HEAD `9181fbe` vs base `ebd267f`, plan SHA from fix round 2. Reviewer: all 57 manifest entries, 4 bitmaps viewed, env loading traced end to end.
+
+| ID | Sev | Finding | Host position |
+|---|---|---|---|
+| R1 | high | Dockerfile `deps` stage copies only `prisma.mjs` + `prisma-schema.mjs`, but `prisma.mjs` now imports `project-env.mjs`, so `postinstall` fails and the image can't build | **Valid. Regression from fix round 2.** Confirmed at `Dockerfile:18`. Fix: also copy `scripts/project-env.mjs` |
+| R2 | medium | `predev` never regenerates the client: after `npm run build` with Postgres in `.env.production`, `npm run dev` on SQLite uses the Postgres client and fails | **Valid** (needs a Postgres `.env.production` locally). Fix: `predev` = `node scripts/prisma.mjs generate && tsx prisma/ensure-dev-db.ts` (generate is skipped when the client already matches) |
+
+**Status:** not approved. 2 findings open (1 high). Waiting on the user's decision; no unreviewed edits made.
