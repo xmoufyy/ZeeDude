@@ -57,3 +57,21 @@ export function generatedClientProvider(clientDir = "node_modules/.prisma/client
     return undefined;
   }
 }
+
+/**
+ * True when node_modules/.prisma/client was generated from exactly this
+ * schema by the installed @prisma/client version, so `generate` can be
+ * skipped. Avoids rewriting the engine file while a dev server holds it open
+ * (an EPERM error on Windows).
+ */
+export function clientIsCurrent(schemaFile, clientDir = "node_modules/.prisma/client") {
+  try {
+    const norm = (s) => s.replace(/\r\n/g, "\n");
+    const sameSchema = norm(readFileSync(`${clientDir}/schema.prisma`, "utf8")) === norm(readFileSync(schemaFile, "utf8"));
+    const generatedVersion = /"clientVersion":\s*"([^"]+)"/.exec(readFileSync(`${clientDir}/index.js`, "utf8"))?.[1];
+    const installedVersion = JSON.parse(readFileSync("node_modules/@prisma/client/package.json", "utf8")).version;
+    return sameSchema && generatedVersion === installedVersion;
+  } catch {
+    return false;
+  }
+}

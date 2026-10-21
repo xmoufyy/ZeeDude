@@ -5,12 +5,21 @@
 //   node scripts/prisma.mjs generate
 //   node scripts/prisma.mjs migrate deploy
 //   node scripts/prisma.mjs sync-schema   (regenerate the Postgres schema)
+//
+// `generate` is skipped when the client already matches the schema (see clientIsCurrent).
 
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { isPostgresUrl, POSTGRES_SCHEMA, resolveDatabaseUrl, SQLITE_SCHEMA, toPostgresSchema } from "./prisma-schema.mjs";
+import {
+  clientIsCurrent,
+  isPostgresUrl,
+  POSTGRES_SCHEMA,
+  resolveDatabaseUrl,
+  SQLITE_SCHEMA,
+  toPostgresSchema,
+} from "./prisma-schema.mjs";
 
 const args = process.argv.slice(2);
 
@@ -22,6 +31,11 @@ if (args[0] === "sync-schema") {
 }
 
 const schema = isPostgresUrl(resolveDatabaseUrl()) ? POSTGRES_SCHEMA : SQLITE_SCHEMA;
+
+if (args[0] === "generate" && !process.env.PRISMA_FORCE_GENERATE && clientIsCurrent(schema)) {
+  console.log(`Prisma client already generated from ${schema}; skipping (set PRISMA_FORCE_GENERATE=1 to force).`);
+  process.exit(0);
+}
 const cli = createRequire(import.meta.url).resolve("prisma/build/index.js");
 const result = spawnSync(process.execPath, [cli, ...args, "--schema", schema], { stdio: "inherit" });
 process.exit(result.status ?? 1);
