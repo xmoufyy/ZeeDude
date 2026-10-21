@@ -117,14 +117,19 @@ const checks: Check[] = [
     },
   },
   {
-    name: `40 parallel login reservations from one IP -> at most ${MAX_FAILURES_PER_IP} allowed`,
+    name: `40 parallel login reservations from one IP -> at most ${MAX_FAILURES_PER_IP} allowed, no rows written once locked`,
     async run() {
       await wipe();
       const results = await Promise.all(Array.from({ length: 40 }, () => reserveLoginAttempt(db, "203.0.113.7")));
       const allowed = results.filter((r) => r.allowed).length;
-      const rows = await db.loginAttempt.count();
       if (allowed > MAX_FAILURES_PER_IP) return `${allowed} reservations allowed`;
-      if (rows !== 40) return `expected 40 recorded attempts, found ${rows}`;
+      // Once locked, further attempts are rejected without writing rows (bounded growth).
+      const rowsLocked = await db.loginAttempt.count();
+      for (let i = 0; i < 20; i++) {
+        if ((await reserveLoginAttempt(db, "203.0.113.7")).allowed) return "an attempt was allowed while locked out";
+      }
+      const rowsAfter = await db.loginAttempt.count();
+      if (rowsAfter !== rowsLocked) return `locked-out attempts still wrote rows (${rowsLocked} -> ${rowsAfter})`;
       return null;
     },
   },

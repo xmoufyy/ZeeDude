@@ -67,7 +67,7 @@ Ending a race locks the standings into a final snapshot and creates a payout row
 
 - One admin password, stored only as a salted scrypt hash (`ADMIN_PASSWORD_HASH`).
 - Sessions are HMAC-signed, httpOnly, SameSite=strict cookies that last 12 hours. Changing the password signs everyone out.
-- Logins are rate-limited to 5 failures per client (and 30 overall) per 15 minutes. Each attempt is recorded *before* the password is checked, so parallel guesses can't slip past the limit.
+- Logins are rate-limited to 5 failures per client (and 30 overall) per 15 minutes. Each attempt is recorded *before* the password is checked, so parallel guesses can't slip past the limit. Once a client is locked out, further attempts are rejected without being stored, and rows older than 24 hours are pruned, so an attack can't grow the table without bound.
 - The client IP comes from `x-vercel-forwarded-for` on Vercel, or from `X-Forwarded-For` only when `TRUST_PROXY_HEADERS=true`. Otherwise every request shares one bucket, so spoofed headers can't dodge the limit. Behind your own reverse proxy, set `TRUST_PROXY_HEADERS=true`.
 - Every admin page and Server Action re-checks the session. Server Actions only accept same-origin POSTs (Next.js checks `Origin` against `Host`), on top of SameSite=strict cookies.
 - Admin writes that check state first (overlaps, finalize, reopen, payments, entry edits) run in serializable transactions with retry, so double-clicks or a cron run at the same moment can't corrupt data. `npm run verify:concurrency` / `verify:postgres` prove this.
@@ -127,7 +127,7 @@ cp .env.docker.example .env.docker   # fill in the secrets
 docker compose --env-file .env.docker up -d --build
 ```
 
-This runs three containers: `app` (Next.js standalone server, runs `prisma migrate deploy` on start), `db` (Postgres 17 with a named volume), and `cron` (calls the refresh endpoint every 10 minutes). The app listens on `APP_PORT` (default 3000). Put it behind a TLS reverse proxy (Caddy, nginx, Cloudflare) and set `TRUST_PROXY_HEADERS=true` so login rate limiting sees real client IPs.
+This runs three containers: `app` (Next.js standalone server, runs `prisma migrate deploy` on start), `db` (Postgres 17 with a named volume), and `cron` (calls the refresh endpoint every 10 minutes). The app listens on `APP_PORT` (default 3000). The database password can contain any characters: compose passes it separately and the entrypoint builds a percent-encoded `DATABASE_URL` (set `DATABASE_URL` yourself to use an external database instead). Put it behind a TLS reverse proxy (Caddy, nginx, Cloudflare) and set `TRUST_PROXY_HEADERS=true` so login rate limiting sees real client IPs.
 
 `NEXT_PUBLIC_*` values are baked in at build time; rebuild (`--build`) after changing them.
 
@@ -137,7 +137,7 @@ This runs three containers: `app` (Next.js standalone server, runs `prisma migra
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | yes | `file:./dev.db` (SQLite, local) or a `postgresql://` URL (production). Picks the Prisma schema |
+| `DATABASE_URL` | yes | `file:./dev.db` (SQLite, local) or a `postgresql://` URL (production). Picks the Prisma schema. Read from the environment or env files in Next.js order (`.env.production.local`, `.env.local`, `.env.production`, `.env` for builds) |
 | `DIRECT_URL` | Postgres | Non-pooled Postgres URL for migrations. Same as `DATABASE_URL` without a pooler (Docker sets it automatically) |
 | `ADMIN_PASSWORD_HASH` | yes | From `npm run admin:password` |
 | `SESSION_SECRET` | yes | 32+ random characters; signs admin sessions |

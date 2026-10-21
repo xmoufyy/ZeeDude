@@ -59,13 +59,16 @@ export async function login(password: string): Promise<LoginResult> {
   const { passwordHash, signingKey } = config();
   const ip = pickClientIp(await headers());
 
+  // Old rows are only needed for the rate-limit window. Prune on every
+  // attempt, including rejected ones, so retention holds during an attack.
+  await pruneLoginAttempts(db);
+
   // Reserve before checking the password so parallel guesses can't all
   // slip under the limit (see login-limiter.ts).
   const reservation = await reserveLoginAttempt(db, ip);
   if (!reservation.allowed) return { ok: false, error: "Too many failed attempts. Try again in 15 minutes." };
 
   const valid = await verifyPassword(password, passwordHash);
-  await pruneLoginAttempts(db);
   if (!valid) return { ok: false, error: "Wrong password." };
   await markLoginSucceeded(db, reservation.attemptId);
 

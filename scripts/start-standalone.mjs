@@ -6,13 +6,14 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { ENV_FILES } from "./prisma-schema.mjs";
 import { absoluteSqliteUrl, prepareStandalone } from "./standalone.mjs";
 
 // Same env file behaviour as `next start`: real environment wins over .env.
-for (const file of [".env.production.local", ".env.local", ".env.production", ".env"]) {
+for (const file of ENV_FILES.production) {
   if (existsSync(file)) process.loadEnvFile(file);
 }
-process.env.DATABASE_URL = absoluteSqliteUrl(process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) process.env.DATABASE_URL = absoluteSqliteUrl(process.env.DATABASE_URL);
 
 const standalone = prepareStandalone();
 const child = spawn(process.execPath, [path.join(standalone, "server.js")], { stdio: "inherit", env: process.env });

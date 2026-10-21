@@ -1,6 +1,8 @@
 // Shared helpers for the SQLite/Postgres schema split (see scripts/prisma.mjs).
 
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import { parseEnv } from "node:util";
 
 export const SQLITE_SCHEMA = "prisma/schema.prisma";
 export const POSTGRES_SCHEMA = "prisma/postgres/schema.prisma";
@@ -9,19 +11,42 @@ export function isPostgresUrl(url) {
   return /^postgres(ql)?:\/\//i.test((url ?? "").trim());
 }
 
+// Same env file precedence as Next.js (highest first). The real environment
+// always wins over files.
+export const ENV_FILES = {
+  production: [".env.production.local", ".env.local", ".env.production", ".env"],
+  development: [".env.development.local", ".env.local", ".env.development", ".env"],
+};
+
 /**
- * DATABASE_URL from the environment, falling back to the .env file like Prisma does.
+ * "production" when NODE_ENV says so or --env-mode=production was passed.
+ * @param {string[]} [args]
  * @param {Record<string, string | undefined>} [env]
- * @param {string} [envFile]
  */
-export function resolveDatabaseUrl(env = process.env, envFile = ".env") {
+export function envMode(args = [], env = process.env) {
+  return args.includes("--env-mode=production") || env.NODE_ENV === "production" ? "production" : "development";
+}
+
+/**
+ * DATABASE_URL as the app will see it: from the environment, else from the
+ * first env file that defines it, parsed with Node's dotenv parser (quotes,
+ * inline comments, CRLF).
+ * @param {Record<string, string | undefined>} [env]
+ * @param {{ mode?: "production" | "development", cwd?: string }} [options]
+ */
+export function resolveDatabaseUrl(env = process.env, { mode = envMode([], env), cwd = "." } = {}) {
   if (env.DATABASE_URL) return env.DATABASE_URL;
-  try {
-    const match = /^DATABASE_URL=(.*)$/m.exec(readFileSync(envFile, "utf8"));
-    return match ? match[1].trim().replace(/^(["'])(.*)\1$/, "$2") : undefined;
-  } catch {
-    return undefined;
+  for (const file of ENV_FILES[mode]) {
+    let text;
+    try {
+      text = readFileSync(path.join(cwd, file), "utf8");
+    } catch {
+      continue;
+    }
+    const value = parseEnv(text).DATABASE_URL;
+    if (value) return value;
   }
+  return undefined;
 }
 
 const SQLITE_DATASOURCE = /datasource db \{\s*provider\s*=\s*"sqlite"\s*url\s*=\s*env\("DATABASE_URL"\)\s*\}/;

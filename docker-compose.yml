@@ -38,7 +38,12 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000"
     environment:
-      DATABASE_URL: postgresql://zeedude:${POSTGRES_PASSWORD}@db:5432/zeedude
+      # Database parts, not a URL: the entrypoint builds DATABASE_URL and
+      # percent-encodes the password, so any characters are safe in it.
+      POSTGRES_HOST: db
+      POSTGRES_USER: zeedude
+      POSTGRES_DB: zeedude
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?Set ADMIN_PASSWORD_HASH (npm run admin:password -- "..." --print)}
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
       CRON_SECRET: ${CRON_SECRET:?Set CRON_SECRET}

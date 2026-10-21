@@ -30,21 +30,30 @@ export function pickClientIp(headers: HeaderReader, env: Record<string, string |
 
 export type Reservation = { allowed: true; attemptId: string } | { allowed: false };
 
+async function countFailures(db: PrismaClient, ip: string, since: Date) {
+  const ipFailures = await db.loginAttempt.count({ where: { ip, success: false, createdAt: { gte: since } } });
+  const allFailures = await db.loginAttempt.count({ where: { success: false, createdAt: { gte: since } } });
+  return { ipFailures, allFailures };
+}
+
 /**
  * Reserve-then-count: record this attempt as a failure *first*, then count
  * failures in the window including it. Every concurrent request's row is
  * committed before its own count, so parallel requests see each other and
  * can't all slip under the limit. The worst case is over-rejecting.
- * A rejected attempt stays recorded, so hammering keeps the lock in place.
+ *
+ * A client that is already locked out is rejected *before* anything is
+ * written, so a sustained attack can't grow the table without bound. The lock
+ * then lasts until its recorded failures age out of the window.
  */
 export async function reserveLoginAttempt(db: PrismaClient, ip: string, now = new Date()): Promise<Reservation> {
-  const attempt = await db.loginAttempt.create({ data: { ip, success: false, createdAt: now } });
   const since = new Date(now.getTime() - FAILURE_WINDOW_MS);
-  const [ipFailures, allFailures] = await Promise.all([
-    db.loginAttempt.count({ where: { ip, success: false, createdAt: { gte: since } } }),
-    db.loginAttempt.count({ where: { success: false, createdAt: { gte: since } } }),
-  ]);
-  if (ipFailures > MAX_FAILURES_PER_IP || allFailures > MAX_FAILURES_GLOBAL) return { allowed: false };
+  const before = await countFailures(db, ip, since);
+  if (before.ipFailures >= MAX_FAILURES_PER_IP || before.allFailures >= MAX_FAILURES_GLOBAL) return { allowed: false };
+
+  const attempt = await db.loginAttempt.create({ data: { ip, success: false, createdAt: now } });
+  const after = await countFailures(db, ip, since);
+  if (after.ipFailures > MAX_FAILURES_PER_IP || after.allFailures > MAX_FAILURES_GLOBAL) return { allowed: false };
   return { allowed: true, attemptId: attempt.id };
 }
 

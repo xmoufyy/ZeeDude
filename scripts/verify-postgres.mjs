@@ -61,6 +61,18 @@ async function waitFor(url, timeoutMs = 60_000) {
   throw new Error(`Server didn't come up at ${url}`);
 }
 
+/** Kill the server and wait until it has really exited (it holds Prisma's engine open). */
+async function stopServer(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  child.kill();
+  const timedOut = await Promise.race([exited.then(() => false), new Promise((r) => setTimeout(() => r(true), 10_000))]);
+  if (timedOut) {
+    child.kill("SIGKILL");
+    await exited;
+  }
+}
+
 async function main() {
   const tmp = mkdtempSync(path.join(tmpdir(), "zd-verify-pg-"));
   let pg = null;
@@ -136,14 +148,20 @@ async function main() {
     const body = await withAuth.json().catch(() => ({}));
     check("cron with auth -> 200 ok:true", withAuth.status === 200 && body.ok === true, JSON.stringify(body));
   } finally {
-    server?.kill();
-    if (pg) await pg.stop().catch(() => {});
+    await stopServer(server);
+    if (pg) await pg.stop().catch((error) => console.error("Couldn't stop embedded Postgres:", error));
     rmSync(tmp, { recursive: true, force: true });
-    // Leave local dev as it was: SQLite client from .env.
+    // Leave local dev as it was: SQLite client from .env. A failure here is a
+    // verifier failure, since dev would otherwise be left on the Postgres client.
     console.log("\n> restoring the SQLite Prisma client");
     const restoreEnv = { ...baseEnv };
     delete restoreEnv.DATABASE_URL;
-    spawnSync(process.execPath, ["scripts/prisma.mjs", "generate"], { stdio: "inherit", env: restoreEnv });
+    delete restoreEnv.NODE_ENV;
+    const restore = spawnSync(process.execPath, ["scripts/prisma.mjs", "generate"], { stdio: "inherit", env: restoreEnv });
+    if (restore.status !== 0) {
+      failures.push("restore SQLite Prisma client");
+      console.error("Restoring the SQLite client failed. Stop any running dev server, then run: npm run postinstall");
+    }
     console.log("Note: .next now holds a Postgres build. Run `npm run build` again before `npm start` on SQLite.");
   }
 

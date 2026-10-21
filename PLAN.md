@@ -17,6 +17,10 @@ Make the site production-ready on **Vercel + hosted Postgres** and on **Docker +
 2. **One schema, two providers.** `prisma/schema.prisma` stays the single source of truth (SQLite). A generated `prisma/postgres/schema.prisma` differs only in the datasource block. A unit test fails if the generated file is out of date.
 3. **Postgres migrations.** `prisma/postgres/migrations/0001_init/migration.sql` is committed and was generated with `prisma migrate diff --from-empty --to-schema-datamodel prisma/postgres/schema.prisma --script`. `migrate deploy` applies it cleanly to an empty Postgres.
 4. **Provider is chosen from `DATABASE_URL`.** `scripts/prisma.mjs` wraps the Prisma CLI. If `DATABASE_URL` starts with `postgres://` or `postgresql://`, it passes `--schema prisma/postgres/schema.prisma`; otherwise it uses the default SQLite schema. Every npm script that calls Prisma (`postinstall`, `build`, `db:*`, `predev`) goes through the wrapper. The app code doesn't change: `@prisma/client` is generated from whichever schema matched.
+   - *(Revised after inspection 1, finding R1.)* The wrapper resolves `DATABASE_URL` the way the app will see it: the real environment first, then env files in Next.js precedence, parsed with Node's dotenv parser (`util.parseEnv`: quotes, inline comments, CRLF).
+     - Production order (`build` and `db:deploy` pass `--env-mode=production`): `.env.production.local` > `.env.local` > `.env.production` > `.env`.
+     - Development order: the same with `.development`.
+   - It passes the resolved URL to the Prisma subprocess, so the schema choice and Prisma's own connection always agree.
 5. **Production build path.**
    - `npm run build` = generate (via wrapper) → `next build`. It never touches the database.
    - A separate `npm run db:deploy` runs `migrate deploy` for Postgres, or `db push` for SQLite.
@@ -29,7 +33,7 @@ Make the site production-ready on **Vercel + hosted Postgres** and on **Docker +
    - runs the Next.js production build, assembles the standalone layout (criterion 8), and starts `node .next/standalone/server.js` on a free port;
    - runs the concurrency checks from criterion 17 against this Postgres;
    - checks that `/`, `/history`, `/rules` return 200 with seeded content, and that `/api/cron/refresh` returns 401 without auth and 200 `ok:true` with auth;
-   - stops and deletes everything, then regenerates the SQLite client so the dev setup is left as it was.
+   - stops and deletes everything, then regenerates the SQLite client so the dev setup is left as it was. *(Revised after inspection 1, finding R4.)* It waits for the server process to actually exit before regenerating, since on Windows the server holds Prisma's engine open. A failed regeneration counts as a verifier failure.
 
    It exits non-zero on any failure.
 8. **Docker.**
@@ -42,6 +46,7 @@ Make the site production-ready on **Vercel + hosted Postgres** and on **Docker +
    - `npm start` changes from `next start` (which doesn't support standalone output) to `node scripts/start-standalone.mjs`. That script copies `public/` and `.next/static/` into `.next/standalone/` and runs its `server.js`. Docker and `verify:postgres` use the same layout.
    - The same copy steps are done locally by `verify:postgres` (criterion 7) when it starts the standalone server. So the layout is proven there by HTTP checks: a JS chunk under `/_next/static/`, `/brand/zeedude-logo.webp`, and `/opengraph-image` must all return 200.
    - `docker-compose.yml` runs `app` + `postgres:17` (named volume, healthcheck) + a `cron` sidecar (`curlimages/curl`) that calls `/api/cron/refresh` every 10 minutes with the bearer secret.
+   - *(Revised after inspection 1, finding R2.)* Compose passes the database to `app` as parts (`POSTGRES_HOST/USER/DB/PASSWORD`), not as a URL. The entrypoint builds `DATABASE_URL` with the user, password and database name percent-encoded, so any password characters are safe. An explicit `DATABASE_URL` (for an external database) takes precedence.
    - `.dockerignore` excludes `.env*`, `node_modules`, `.next`, `prisma/*.db`.
 9. **Open Graph and icons.**
    - `src/app/opengraph-image.tsx` (and a `twitter-image` re-export) renders a static 1200×630 image with `next/og`: banner background, dark overlay, "SolPump Wager Leaderboard", and "Code ZEEDUDE".
@@ -62,7 +67,8 @@ Make the site production-ready on **Vercel + hosted Postgres** and on **Docker +
       3. Rejects if either count is over the limit (`> MAX`).
 
       Each request's insert is committed before its own count, so concurrent requests see each other's rows. The worst case is rejecting slightly too many requests, never letting too many through.
-    - Only reserved, allowed requests run scrypt. On success the row is updated to `success: true`. A rejected reservation stays as a failure, so hammering the endpoint keeps the lock.
+    - Only reserved, allowed requests run scrypt. On success the row is updated to `success: true`.
+    - *(Revised after inspection 1, finding R3.)* A client that is already over a limit is rejected *before* anything is written, so a sustained attack can't grow the `LoginAttempt` table without bound. The lock lasts until its recorded failures leave the 15-minute window. Rows older than 24 hours are pruned on every login attempt, including rejected ones. A rejection that races past that pre-check is still recorded, so the only effect of the race is over-rejecting.
     - Proof is the concurrency check in criterion 17 (40 parallel reservations from one IP → at most 5 allowed), not just the header unit test.
 14. **Lighthouse.** Against the standalone server (`npm start`, see criterion 8) on the SQLite build with seed data, Lighthouse (pinned CLI, headless Chrome at `C:\Program Files\Google\Chrome\Application\chrome.exe`) scores:
     - mobile: performance ≥ 90, accessibility ≥ 95, best practices ≥ 95, SEO ≥ 95;
@@ -91,7 +97,7 @@ Make the site production-ready on **Vercel + hosted Postgres** and on **Docker +
     - 10 parallel `ensureCurrentPeriod` → exactly 1 period for the week;
     - 10 parallel finalizations → exactly 1 succeeds, payout rows = number of winners, and 1 final snapshot;
     - mark-paid racing reopen → afterwards, either the period is open and the payout never committed as paid, or the payout is paid and the period is still finalized. A paid payout is never deleted;
-    - 40 parallel login reservations from one IP → at most 5 allowed.
+    - 40 parallel login reservations from one IP → at most 5 allowed; then 20 more attempts while locked write no new rows (R3).
 18. **Checks stay green.** `npm test`, `npm run lint`, `npx tsc --noEmit` and `npm run build` (SQLite) all pass. One commit per logical step on `main`, with the Co-Authored-By line.
 
 ## Approach and key decisions
