@@ -127,9 +127,15 @@ cp .env.docker.example .env.docker   # fill in the secrets
 docker compose --env-file .env.docker up -d --build
 ```
 
-This runs three containers: `app` (Next.js standalone server, runs `prisma migrate deploy` on start), `db` (Postgres 17 with a named volume), and `cron` (calls the refresh endpoint every 10 minutes). The app listens on `APP_PORT` (default 3000). The database password can contain any characters: compose passes it separately and the entrypoint builds a percent-encoded `DATABASE_URL` (set `DATABASE_URL` yourself to use an external database instead). Put it behind a TLS reverse proxy (Caddy, nginx, Cloudflare) and set `TRUST_PROXY_HEADERS=true` so login rate limiting sees real client IPs.
+This runs three containers: `app` (Next.js standalone server, runs `prisma migrate deploy` on start), `db` (Postgres 17 with a named volume), and `cron` (calls the refresh endpoint every 10 minutes). The app listens on `APP_PORT` (default 3000). The database password can contain any characters: compose passes it separately and the entrypoint builds a percent-encoded `DATABASE_URL`. Put it behind a TLS reverse proxy (Caddy, nginx, Cloudflare) and set `TRUST_PROXY_HEADERS=true` so login rate limiting sees real client IPs.
 
 `NEXT_PUBLIC_*` values are baked in at build time; rebuild (`--build`) after changing them.
+
+**External database** (managed Postgres instead of the bundled one): set `DATABASE_URL` (plus `DIRECT_URL` if it goes through a pooler) in `.env.docker`, leave `POSTGRES_PASSWORD` empty, and start only the app and cron:
+
+```bash
+docker compose --env-file .env.docker up -d --build --no-deps app cron
+```
 
 > **Unverified here:** the Docker image couldn't be built on the machine this was developed on (no Docker). The same standalone layout, migrations, and Postgres behaviour *are* exercised by `npm run verify:postgres`. Run `docker compose up --build` once and check `/`, `/admin/login` and the cron logs (`docker compose logs cron`) before relying on it.
 
@@ -137,7 +143,7 @@ This runs three containers: `app` (Next.js standalone server, runs `prisma migra
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | yes | `file:./dev.db` (SQLite, local) or a `postgresql://` URL (production). Picks the Prisma schema. Read from the environment or env files in Next.js order (`.env.production.local`, `.env.local`, `.env.production`, `.env` for builds) |
+| `DATABASE_URL` | yes | `file:./dev.db` (SQLite, local) or a `postgresql://` URL (production). Picks the Prisma schema. Every script loads env files with Next.js's own loader (`@next/env`): same file order and `${VAR}` expansion as the app, and real environment variables win |
 | `DIRECT_URL` | Postgres | Non-pooled Postgres URL for migrations. Same as `DATABASE_URL` without a pooler (Docker sets it automatically) |
 | `ADMIN_PASSWORD_HASH` | yes | From `npm run admin:password` |
 | `SESSION_SECRET` | yes | 32+ random characters; signs admin sessions |

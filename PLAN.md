@@ -17,10 +17,13 @@ Make the site production-ready on **Vercel + hosted Postgres** and on **Docker +
 2. **One schema, two providers.** `prisma/schema.prisma` stays the single source of truth (SQLite). A generated `prisma/postgres/schema.prisma` differs only in the datasource block. A unit test fails if the generated file is out of date.
 3. **Postgres migrations.** `prisma/postgres/migrations/0001_init/migration.sql` is committed and was generated with `prisma migrate diff --from-empty --to-schema-datamodel prisma/postgres/schema.prisma --script`. `migrate deploy` applies it cleanly to an empty Postgres.
 4. **Provider is chosen from `DATABASE_URL`.** `scripts/prisma.mjs` wraps the Prisma CLI. If `DATABASE_URL` starts with `postgres://` or `postgresql://`, it passes `--schema prisma/postgres/schema.prisma`; otherwise it uses the default SQLite schema. Every npm script that calls Prisma (`postinstall`, `build`, `db:*`, `predev`) goes through the wrapper. The app code doesn't change: `@prisma/client` is generated from whichever schema matched.
-   - *(Revised after inspection 1, finding R1.)* The wrapper resolves `DATABASE_URL` the way the app will see it: the real environment first, then env files in Next.js precedence, parsed with Node's dotenv parser (`util.parseEnv`: quotes, inline comments, CRLF).
+   - *(Revised after inspections 1 and 2: R1 there, then R1–R3 here.)* Every script that talks to the database loads the **full** environment with Next.js's own loader (`@next/env` `loadEnvConfig`, via `scripts/project-env.mjs`) before doing anything: `prisma.mjs`, `db-deploy.mjs`, `ensure-dev-db.ts`, `seed.ts`, `start-standalone.mjs`.
+     - This gives the same file precedence as the app, `${VAR}` expansion, and real environment variables winning.
      - Production order (`build` and `db:deploy` pass `--env-mode=production`): `.env.production.local` > `.env.local` > `.env.production` > `.env`.
      - Development order: the same with `.development`.
-   - It passes the resolved URL to the Prisma subprocess, so the schema choice and Prisma's own connection always agree.
+   - The schema choice, Prisma CLI subprocesses (`DATABASE_URL` *and* `DIRECT_URL`), in-process Prisma clients, and the app therefore all see one configuration.
+   - Scripts that construct a PrismaClient (`ensure-dev-db.ts`, `seed.ts`) load the env through the side-effect import `scripts/load-env.mjs` placed **before** `@prisma/client`. Importing `@prisma/client` loads `.env` by itself, which would otherwise pre-empt `.env.local`. `@next/env` is loaded with `createRequire` so it works under both Node and `tsx`.
+   - `node scripts/prisma.mjs which-schema` prints the selected schema; tests drive it.
 5. **Production build path.**
    - `npm run build` = generate (via wrapper) → `next build`. It never touches the database.
    - A separate `npm run db:deploy` runs `migrate deploy` for Postgres, or `db push` for SQLite.
@@ -47,6 +50,7 @@ Make the site production-ready on **Vercel + hosted Postgres** and on **Docker +
    - The same copy steps are done locally by `verify:postgres` (criterion 7) when it starts the standalone server. So the layout is proven there by HTTP checks: a JS chunk under `/_next/static/`, `/brand/zeedude-logo.webp`, and `/opengraph-image` must all return 200.
    - `docker-compose.yml` runs `app` + `postgres:17` (named volume, healthcheck) + a `cron` sidecar (`curlimages/curl`) that calls `/api/cron/refresh` every 10 minutes with the bearer secret.
    - *(Revised after inspection 1, finding R2.)* Compose passes the database to `app` as parts (`POSTGRES_HOST/USER/DB/PASSWORD`), not as a URL. The entrypoint builds `DATABASE_URL` with the user, password and database name percent-encoded, so any password characters are safe. An explicit `DATABASE_URL` (for an external database) takes precedence.
+   - *(Revised after inspection 2, R4.)* Compose forwards optional `DATABASE_URL`/`DIRECT_URL` to `app`, and `POSTGRES_PASSWORD` is no longer a compose-level requirement. The documented external-database flow is: set the URLs, leave the password empty, and run `docker compose --env-file .env.docker up -d --build --no-deps app cron`.
    - `.dockerignore` excludes `.env*`, `node_modules`, `.next`, `prisma/*.db`.
 9. **Open Graph and icons.**
    - `src/app/opengraph-image.tsx` (and a `twitter-image` re-export) renders a static 1200×630 image with `next/og`: banner background, dark overlay, "SolPump Wager Leaderboard", and "Code ZEEDUDE".

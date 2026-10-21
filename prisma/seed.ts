@@ -6,11 +6,14 @@
 // Refuses to run against Postgres or with NODE_ENV=production unless you pass
 // --force-wipe, because it deletes every row.
 
+// Must come first: connect to the database the app would use (Next.js env
+// file rules), before @prisma/client loads .env on its own.
+import "../scripts/load-env.mjs";
 import { PrismaClient } from "@prisma/client";
 import { assignPrizes, computePlacePrizes } from "../src/lib/payouts";
 import { weeklyWindowOffset } from "../src/lib/period";
 import { rankEntries } from "../src/lib/ranking";
-import { isPostgresUrl, resolveDatabaseUrl } from "../scripts/prisma-schema.mjs";
+import { isPostgresUrl } from "../scripts/prisma-schema.mjs";
 
 const db = new PrismaClient();
 
@@ -53,7 +56,7 @@ function wagersFor(seed: number, players: number, top: number) {
 }
 
 async function main() {
-  const risky = isPostgresUrl(resolveDatabaseUrl()) || process.env.NODE_ENV === "production";
+  const risky = isPostgresUrl(process.env.DATABASE_URL) || process.env.NODE_ENV === "production";
   if (risky && !process.argv.includes("--force-wipe")) {
     console.error(
       "Refusing to seed: this deletes ALL data and DATABASE_URL looks like a real database. " +

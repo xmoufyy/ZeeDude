@@ -117,3 +117,18 @@ Re-run proofs after the fixes: `npm test` 84/84; eslint and tsc clean; `verify:c
 Proposed fix (not applied: no inspection rounds left to review it): load the full environment with `@next/env` `loadEnvConfig` (Next's own precedence and expansion) in `prisma.mjs`, `db-deploy.mjs`, `ensure-dev-db.ts`, `seed.ts` and `start-standalone.mjs`, and pass it to the Prisma subprocesses; forward optional `DATABASE_URL`/`DIRECT_URL` in compose and document the external-database setup.
 
 **Status:** not approved by inspection. Four medium findings are open. The pending decision is the user's: fix now with an extra inspection round, fix without re-inspection, or accept as-is.
+
+## Fix round 2 (user-authorized extra inspection)
+
+User: "Fix the 4 open findings with @next/env loading and the compose change, then run one more fresh Codex inspection."
+
+| ID (inspection 2) | Fix |
+|---|---|
+| R1 DIRECT_URL not resolved | `scripts/project-env.mjs` loads the **whole** env with `@next/env` `loadEnvConfig` (pinned dependency `@next/env@16.4.2`); `prisma.mjs` and `db-deploy.mjs` pass the full env to Prisma. Test: `DIRECT_URL` from `.env.production.local` beats `.env` |
+| R2 no `${VAR}` expansion | Same loader, so Next's expansion applies. Tests: `DATABASE_URL="${POSTGRES_PRISMA_URL}"` resolves; `prisma.mjs which-schema --env-mode=production` picks Postgres from an expanded `.env.production` |
+| R3 ensure-dev-db/seed used a different DB | Side-effect import `scripts/load-env.mjs` placed **before** `@prisma/client` (the client's import loads `.env` itself, which pre-empted `.env.local`; my first attempt missed this and the manual check caught it). `@next/env` is loaded via `createRequire` (a default import was `undefined` under tsx; a regression test runs under tsx). Manual proof: a temp `.env.local` → `r3-check.db` was created, pushed and seeded (4 periods); `dev.db` untouched |
+| R4 compose ignored external DATABASE_URL | Compose forwards optional `DATABASE_URL`/`DIRECT_URL`; `POSTGRES_PASSWORD` is no longer a compose-level hard requirement; documented the `--no-deps app cron` external-DB flow (README, compose header, `.env.docker.example`). Not runnable here (no Docker) |
+
+Plan updated (criteria 4 and 8). New plan SHA256: `0d9e6b6182f0158a283f2ed6e04ea24ebc970483fd9b4b17199f9b9770d9143a`.
+
+Proofs re-run: tsc and eslint clean; `npm test` 88/88 (10 files); `verify:concurrency` 4/4; `verify:postgres` 14/14 PASS, client restored to sqlite; SQLite build plus `npm start` smoke (/, /history, /rules 200 with data); `npm run dev` (predev via load-env) serves 200.

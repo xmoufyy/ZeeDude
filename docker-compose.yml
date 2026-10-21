@@ -3,6 +3,11 @@
 #   cp .env.docker.example .env.docker   # fill in secrets
 #   docker compose --env-file .env.docker up -d --build
 #
+# External database instead of the bundled one: set DATABASE_URL (and
+# DIRECT_URL if it uses a pooler) in .env.docker, leave POSTGRES_PASSWORD
+# empty, and start only the app and cron services:
+#   docker compose --env-file .env.docker up -d --build --no-deps app cron
+#
 # Uses its own env file so it never picks up your local SQLite .env.
 
 services:
@@ -11,7 +16,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: zeedude
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+      # Required when this bundled database is used (the image refuses to start without it).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: zeedude
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -38,12 +44,15 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000"
     environment:
-      # Database parts, not a URL: the entrypoint builds DATABASE_URL and
-      # percent-encodes the password, so any characters are safe in it.
+      # Bundled database: passed as parts, not a URL. The entrypoint builds
+      # DATABASE_URL and percent-encodes the password, so any characters are safe.
       POSTGRES_HOST: db
       POSTGRES_USER: zeedude
       POSTGRES_DB: zeedude
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      # External database: set these instead; DATABASE_URL takes precedence.
+      DATABASE_URL: ${DATABASE_URL:-}
+      DIRECT_URL: ${DIRECT_URL:-}
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?Set ADMIN_PASSWORD_HASH (npm run admin:password -- "..." --print)}
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
       CRON_SECRET: ${CRON_SECRET:?Set CRON_SECRET}

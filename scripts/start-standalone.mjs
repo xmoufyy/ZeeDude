@@ -4,15 +4,12 @@
 // PORT and HOSTNAME work as usual (defaults: 3000, all interfaces).
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
 import path from "node:path";
-import { ENV_FILES } from "./prisma-schema.mjs";
+import { loadProjectEnv } from "./project-env.mjs";
 import { absoluteSqliteUrl, prepareStandalone } from "./standalone.mjs";
 
-// Same env file behaviour as `next start`: real environment wins over .env.
-for (const file of ENV_FILES.production) {
-  if (existsSync(file)) process.loadEnvFile(file);
-}
+// Same env file behaviour as `next start` (Next's own loader): real environment wins.
+loadProjectEnv("production");
 if (process.env.DATABASE_URL) process.env.DATABASE_URL = absoluteSqliteUrl(process.env.DATABASE_URL);
 
 const standalone = prepareStandalone();

@@ -5,10 +5,11 @@
 // Run it before starting a new release (Vercel's build command, Docker's entrypoint).
 
 import { spawnSync } from "node:child_process";
-import { envMode, isPostgresUrl, resolveDatabaseUrl } from "./prisma-schema.mjs";
+import { isPostgresUrl } from "./prisma-schema.mjs";
+import { envMode, loadProjectEnv } from "./project-env.mjs";
 
 const flags = process.argv.slice(2).filter((a) => a.startsWith("--env-mode="));
-const url = resolveDatabaseUrl(process.env, { mode: envMode(flags) });
-const args = isPostgresUrl(url) ? ["migrate", "deploy"] : ["db", "push", "--skip-generate"];
+const env = loadProjectEnv(envMode(flags));
+const args = isPostgresUrl(env.DATABASE_URL) ? ["migrate", "deploy"] : ["db", "push", "--skip-generate"];
 const result = spawnSync(process.execPath, ["scripts/prisma.mjs", ...args, ...flags], { stdio: "inherit" });
 process.exit(result.status ?? 1);

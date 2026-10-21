@@ -21,6 +21,7 @@
     "verify:postgres": "node scripts/verify-postgres.mjs"
   },
   "dependencies": {
+    "@next/env": "16.4.2",
     "@prisma/client": "^6.19.3",
     "next": "16.4.2",
     "react": "19.3.0",
