@@ -1,5 +1,5 @@
 // Sets the admin password for local dev by writing ADMIN_PASSWORD_HASH (and a
-// SESSION_SECRET if missing) into .env. For production, run with --print and
+// SESSION_SECRET if missing, empty or too short) into .env. For production, run with --print and
 // paste the values into your host's environment settings instead.
 //
 //   npm run admin:password -- "your new password"
@@ -7,6 +7,7 @@
 
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { applyAdminCredentials } from "../src/lib/env-file";
 import { hashPassword } from "../src/lib/password";
 
 async function main() {
@@ -28,18 +29,7 @@ async function main() {
     return;
   }
 
-  let env = existsSync(".env") ? readFileSync(".env", "utf8") : "";
-  const set = (key: string, value: string, overwrite: boolean) => {
-    const line = `${key}="${value}"`;
-    const pattern = new RegExp(`^${key}=.*$`, "m");
-    if (pattern.test(env)) {
-      if (overwrite) env = env.replace(pattern, line);
-    } else {
-      env = `${env.trimEnd()}\n${line}\n`;
-    }
-  };
-  set("ADMIN_PASSWORD_HASH", hash, true);
-  set("SESSION_SECRET", secret, false);
+  const env = applyAdminCredentials(existsSync(".env") ? readFileSync(".env", "utf8") : "", hash, secret);
   writeFileSync(".env", env);
   console.log("Updated .env. Restart `npm run dev` to use the new password.");
 }
