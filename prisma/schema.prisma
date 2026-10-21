@@ -1,6 +1,7 @@
-// SQLite locally. For production Postgres, change `provider` to "postgresql"
-// (see README "Deploying"). Columns avoid SQLite-only or Postgres-only types
-// so the same schema works on both.
+// Source of truth for the database shape (SQLite, used locally).
+// prisma/postgres/schema.prisma is generated from this file for production;
+// run `node scripts/prisma.mjs sync-schema` after editing. Columns avoid
+// SQLite-only or Postgres-only types so the same models work on both.
 
 generator client {
   provider = "prisma-client-js"

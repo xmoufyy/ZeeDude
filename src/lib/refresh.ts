@@ -1,11 +1,12 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
-import { findOverlappingPeriod, snapshotPeriod } from "./admin-ops";
+import { AdminError, findOverlappingPeriod, snapshotPeriod } from "./admin-ops";
 import { db } from "./db";
 import { saveEntries } from "./entries";
 import { LEADERBOARD_TAG } from "./leaderboard";
 import { weeklyWindow } from "./period";
 import { getConfiguredProvider, ProviderError, type ProviderKind } from "./providers";
+import { serializable } from "./tx";
 
 export type ProviderStatus = {
   provider: ProviderKind;
@@ -50,15 +51,19 @@ async function saveProviderStatus(status: ProviderStatus) {
 export async function ensureCurrentPeriod(now = new Date()): Promise<string | null> {
   if (process.env.AUTO_CREATE_PERIODS?.trim().toLowerCase() === "false") return null;
   const { start, end } = weeklyWindow(now);
-  if (await findOverlappingPeriod(start, end)) return null;
-  const template = await db.period.findFirst({ orderBy: { startsAt: "desc" } });
-  if (!template) return null;
+  // Check and create in one serializable transaction, so a cron run and an
+  // admin "Refresh now" at the same moment can't both create the week.
+  return serializable(async (tx) => {
+    if (await findOverlappingPeriod(start, end, undefined, tx)) return null;
+    const template = await tx.period.findFirst({ orderBy: { startsAt: "desc" } });
+    if (!template) return null;
 
-  const name = `Week of ${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })}`;
-  await db.period.create({
-    data: { name, startsAt: start, endsAt: end, prizePoolSol: template.prizePoolSol, payoutSplit: template.payoutSplit },
+    const name = `Week of ${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })}`;
+    await tx.period.create({
+      data: { name, startsAt: start, endsAt: end, prizePoolSol: template.prizePoolSol, payoutSplit: template.payoutSplit },
+    });
+    return name;
   });
-  return name;
 }
 
 /**
@@ -87,6 +92,10 @@ export async function runRefresh(): Promise<RefreshReport> {
         await saveEntries(period.id, entries, "replace", provider.kind);
         report.refreshed.push({ period: period.name, players: entries.length });
       } catch (error) {
+        if (error instanceof AdminError) {
+          // An admin ended this period while we were fetching; its results are locked.
+          continue;
+        }
         if (!(error instanceof ProviderError)) throw error;
         report.ok = false;
         report.errors.push(`${period.name}: ${error.message}`);

@@ -1,0 +1,117 @@
+// GENERATED from prisma/schema.prisma by `node scripts/prisma.mjs sync-schema`. Do not edit.
+
+// Source of truth for the database shape (SQLite, used locally).
+// prisma/postgres/schema.prisma is generated from this file for production;
+// run `node scripts/prisma.mjs sync-schema` after editing. Columns avoid
+// SQLite-only or Postgres-only types so the same models work on both.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Non-pooled connection for migrations. Set it equal to DATABASE_URL
+  // when your host has no connection pooler.
+  directUrl = env("DIRECT_URL")
+}
+
+/// One leaderboard race (weekly by default).
+model Period {
+  id            String    @id @default(cuid())
+  name          String
+  startsAt      DateTime
+  endsAt        DateTime
+  prizePoolSol  Float
+  /// JSON array of percentages; index 0 is 1st place. Must total 100.
+  payoutSplit   String
+  /// Set when an admin ends the period and winners are locked in.
+  finalizedAt   DateTime?
+  /// When wager data for this period was last imported or edited.
+  dataUpdatedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  entries   WagerEntry[]
+  payouts   Payout[]
+  snapshots Snapshot[]
+
+  @@index([startsAt])
+  @@index([endsAt])
+}
+
+/// A player's running wager total for a period.
+model WagerEntry {
+  id         String   @id @default(cuid())
+  periodId   String
+  username   String
+  wageredSol Float
+  wageredUsd Float?
+  /// "csv" | "json" | "manual" | "api"
+  source     String   @default("manual")
+  updatedAt  DateTime @updatedAt
+
+  period Period @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([periodId, username])
+  @@index([periodId, wageredSol])
+}
+
+/// Players who can never place (cheaters, staff, alts). Matched case-insensitively.
+model ExcludedUser {
+  id        String   @id @default(cuid())
+  /// Stored lowercased.
+  username  String   @unique
+  reason    String
+  createdAt DateTime @default(now())
+}
+
+/// Locked-in prize for a winner once a period is finalized.
+model Payout {
+  id        String    @id @default(cuid())
+  periodId  String
+  rank      Int
+  username  String
+  amountSol Float
+  paid      Boolean   @default(false)
+  paidAt    DateTime?
+  txNote    String?
+
+  period Period @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([periodId, username])
+  @@index([periodId, rank])
+}
+
+/// Point-in-time copy of a ranked leaderboard, so past results stay viewable
+/// exactly as they were even if entries or exclusions change later.
+model Snapshot {
+  id       String   @id @default(cuid())
+  periodId String
+  takenAt  DateTime @default(now())
+  isFinal  Boolean  @default(false)
+  /// JSON: [{ rank, username, wageredSol, prizeSol }]
+  data     String
+
+  period Period @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([periodId, takenAt])
+}
+
+/// Simple key/value site settings (e.g. "maskUsernames").
+model Setting {
+  key   String @id
+  value String
+}
+
+/// Admin login attempts, for rate limiting brute-force guesses.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+  @@index([createdAt])
+}

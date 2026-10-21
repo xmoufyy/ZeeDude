@@ -3,7 +3,19 @@
 import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { AdminError, assertEditable, finalizePeriod, findOverlappingPeriod, reopenPeriod, snapshotPeriod } from "@/lib/admin-ops";
+import {
+  AdminError,
+  assertEditable,
+  createPeriod,
+  deleteEntry,
+  deletePeriod,
+  finalizePeriod,
+  reopenPeriod,
+  saveEntry,
+  setPayoutPaid,
+  snapshotPeriod,
+  updatePeriod,
+} from "@/lib/admin-ops";
 import { login, logout, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { saveEntries } from "@/lib/entries";
@@ -13,6 +25,7 @@ import { fromZonedInputValue } from "@/lib/period";
 import { CsvImportProvider, ProviderError } from "@/lib/providers";
 import { normalizeUsername } from "@/lib/ranking";
 import { runRefresh } from "@/lib/refresh";
+import { BusyError } from "@/lib/tx";
 
 export type ActionResult = { ok: boolean; message: string; details?: string[] } | null;
 
@@ -30,7 +43,7 @@ async function guarded(run: () => Promise<ActionResult>): Promise<ActionResult> 
   try {
     return await run();
   } catch (error) {
-    if (error instanceof AdminError) return { ok: false, message: error.message };
+    if (error instanceof AdminError || error instanceof BusyError) return { ok: false, message: error.message };
     if (error instanceof z.ZodError) {
       return { ok: false, message: "Please fix these values:", details: error.issues.map((i) => i.message) };
     }
@@ -111,10 +124,7 @@ function readPeriodForm(form: FormData) {
 export async function createPeriodAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   let createdId = "";
   const result = await guarded(async () => {
-    const data = readPeriodForm(form);
-    const overlap = await findOverlappingPeriod(data.startsAt, data.endsAt);
-    if (overlap) throw new AdminError(`Those dates overlap "${overlap.name}".`);
-    const period = await db.period.create({ data: { ...data, payoutSplit: JSON.stringify(data.payoutSplit) } });
+    const period = await createPeriod(readPeriodForm(form));
     createdId = period.id;
     changed();
     return { ok: true, message: "Period created." };
@@ -125,11 +135,7 @@ export async function createPeriodAction(_prev: ActionResult, form: FormData): P
 
 export async function updatePeriodAction(periodId: string, _prev: ActionResult, form: FormData): Promise<ActionResult> {
   return guarded(async () => {
-    await assertEditable(id.parse(periodId));
-    const data = readPeriodForm(form);
-    const overlap = await findOverlappingPeriod(data.startsAt, data.endsAt, periodId);
-    if (overlap) throw new AdminError(`Those dates overlap "${overlap.name}".`);
-    await db.period.update({ where: { id: periodId }, data: { ...data, payoutSplit: JSON.stringify(data.payoutSplit) } });
+    await updatePeriod(id.parse(periodId), readPeriodForm(form));
     changed();
     return { ok: true, message: "Saved." };
   });
@@ -153,9 +159,7 @@ export async function reopenPeriodAction(periodId: string, _prev: ActionResult):
 
 export async function deletePeriodAction(periodId: string, _prev: ActionResult): Promise<ActionResult> {
   const result = await guarded(async () => {
-    const paid = await db.payout.count({ where: { periodId: id.parse(periodId), paid: true } });
-    if (paid > 0) throw new AdminError("Can't delete a period with paid prizes. It's part of the payout record.");
-    await db.period.delete({ where: { id: periodId } });
+    await deletePeriod(id.parse(periodId));
     changed();
     return { ok: true, message: "Deleted." };
   });
@@ -167,6 +171,7 @@ export async function deletePeriodAction(periodId: string, _prev: ActionResult):
 
 export async function importEntriesAction(periodId: string, _prev: ActionResult, form: FormData): Promise<ActionResult> {
   return guarded(async () => {
+    // Early exit before parsing; saveEntries re-checks inside its transaction.
     await assertEditable(id.parse(periodId));
     const mode = z.enum(["replace", "merge"]).parse(form.get("mode"));
     const file = form.get("file");
@@ -212,37 +217,20 @@ export async function importEntriesAction(periodId: string, _prev: ActionResult,
 
 export async function saveEntryAction(periodId: string, _prev: ActionResult, form: FormData): Promise<ActionResult> {
   return guarded(async () => {
-    await assertEditable(id.parse(periodId));
     const data = z
       .object({ username, wageredSol: solAmount("Wagered SOL"), wageredUsd: optionalAmount("Wagered USD") })
       .parse({ username: form.get("username"), wageredSol: form.get("wageredSol"), wageredUsd: form.get("wageredUsd") });
-
-    const entries = await db.wagerEntry.findMany({ where: { periodId }, select: { id: true, username: true } });
-    const match = entries.find((e) => normalizeUsername(e.username) === normalizeUsername(data.username));
-    const values = { wageredSol: data.wageredSol, wageredUsd: data.wageredUsd ?? null, source: "manual" };
-
-    await db.$transaction([
-      match
-        ? db.wagerEntry.update({ where: { id: match.id }, data: values })
-        : db.wagerEntry.create({ data: { ...values, periodId, username: data.username } }),
-      db.period.update({ where: { id: periodId }, data: { dataUpdatedAt: new Date() } }),
-    ]);
+    const { updated } = await saveEntry(id.parse(periodId), data);
     changed();
-    return { ok: true, message: match ? `Updated ${match.username}.` : `Added ${data.username}.` };
+    return { ok: true, message: updated ? `Updated ${updated}.` : `Added ${data.username}.` };
   });
 }
 
 export async function deleteEntryAction(entryId: string, _prev: ActionResult): Promise<ActionResult> {
   return guarded(async () => {
-    const entry = await db.wagerEntry.findUnique({ where: { id: id.parse(entryId) } });
-    if (!entry) throw new AdminError("Row not found.");
-    await assertEditable(entry.periodId);
-    await db.$transaction([
-      db.wagerEntry.delete({ where: { id: entry.id } }),
-      db.period.update({ where: { id: entry.periodId }, data: { dataUpdatedAt: new Date() } }),
-    ]);
+    const removed = await deleteEntry(id.parse(entryId));
     changed();
-    return { ok: true, message: `Removed ${entry.username}.` };
+    return { ok: true, message: `Removed ${removed}.` };
   });
 }
 
@@ -254,10 +242,7 @@ export async function setPayoutPaidAction(payoutId: string, _prev: ActionResult,
       .object({ paid: z.enum(["true", "false"]), txNote: z.string().trim().max(500, "Note is too long") })
       .parse({ paid: form.get("paid"), txNote: form.get("txNote") ?? "" });
     const paid = data.paid === "true";
-    const payout = await db.payout.update({
-      where: { id: id.parse(payoutId) },
-      data: { paid, paidAt: paid ? new Date() : null, txNote: data.txNote || null },
-    });
+    const payout = await setPayoutPaid(id.parse(payoutId), paid, data.txNote || null);
     changed();
     return { ok: true, message: paid ? `Marked ${payout.username} as paid.` : `Marked ${payout.username} as unpaid.` };
   });

@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { assignPrizes, computePlacePrizes } from "./payouts";
 import { rankEntries } from "./ranking";
+import type { DbClient } from "./tx";
 
 export type StandingRow = { rank: number; username: string; wageredSol: number; prizeSol: number };
 
@@ -13,15 +14,13 @@ export function parseSplit(json: string): number[] {
 }
 
 /** Current standings for a period from its wager entries, with exclusions applied. */
-export async function computeStandings(period: {
-  id: string;
-  prizePoolSol: number;
-  payoutSplit: string;
-}): Promise<StandingRow[]> {
-  const [entries, excluded] = await Promise.all([
-    db.wagerEntry.findMany({ where: { periodId: period.id }, select: { username: true, wageredSol: true } }),
-    db.excludedUser.findMany({ select: { username: true } }),
-  ]);
+export async function computeStandings(
+  period: { id: string; prizePoolSol: number; payoutSplit: string },
+  client: DbClient = db,
+): Promise<StandingRow[]> {
+  // Sequential (not Promise.all) so it also works on an interactive transaction client.
+  const entries = await client.wagerEntry.findMany({ where: { periodId: period.id }, select: { username: true, wageredSol: true } });
+  const excluded = await client.excludedUser.findMany({ select: { username: true } });
   const prizes = computePlacePrizes(period.prizePoolSol, parseSplit(period.payoutSplit));
   return assignPrizes(
     rankEntries(entries, excluded.map((e) => e.username)),
