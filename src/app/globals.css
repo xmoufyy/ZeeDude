@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* Palette pulled from the ZeeDude logo: molten gold lettering on a cosmic
+   purple/magenta field, with a cyan secondary accent. */
+@theme {
+  --color-ink: #07050d;
+  --color-night: #0f0a1a;
+  --color-panel: #150e24;
+  --color-panel-2: #1d1432;
+  --color-line: rgb(255 255 255 / 0.09);
+
+  --color-gold: #ffc83d;
+  --color-gold-light: #ffe8a3;
+  --color-gold-deep: #e48f0b;
+  --color-magenta: #e046f5;
+  --color-violet: #8a3dff;
+  --color-cyan: #33e3f0;
+  --color-silver: #dfe3ee;
+  --color-bronze: #ef9a5d;
+
+  --color-text: #f6f1ff;
+  --color-muted: #b3a6cf;
+
+  --font-display: var(--font-bungee), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+
+  --animate-rise: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-glow: glow 3.2s ease-in-out infinite;
+  --animate-shine: shine 6s linear infinite;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(28px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes glow {
+    0%,
+    100% {
+      box-shadow: 0 0 0 1px rgb(255 200 61 / 0.35), 0 0 28px -6px rgb(255 200 61 / 0.45);
+    }
+    50% {
+      box-shadow: 0 0 0 1px rgb(255 200 61 / 0.6), 0 0 44px -4px rgb(255 200 61 / 0.6);
+    }
+  }
+  @keyframes shine {
+    to {
+      background-position: 200% center;
+    }
+  }
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  /* Cosmic glow at the top + a sparse star field, all CSS (no image cost). */
+  background-image:
+    radial-gradient(1200px 600px at 50% -200px, rgb(138 61 255 / 0.32), transparent 70%),
+    radial-gradient(700px 400px at 85% 10%, rgb(224 70 245 / 0.14), transparent 70%),
+    radial-gradient(1.5px 1.5px at 20% 30%, rgb(255 255 255 / 0.5), transparent),
+    radial-gradient(1px 1px at 70% 20%, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1px 1px at 40% 80%, rgb(255 255 255 / 0.3), transparent),
+    radial-gradient(1.5px 1.5px at 90% 60%, rgb(255 255 255 / 0.35), transparent);
+  background-size: auto, auto, 380px 380px, 260px 260px, 320px 320px, 440px 440px;
+  background-repeat: no-repeat, no-repeat, repeat, repeat, repeat, repeat;
+}
+
+/* Molten-gold text like the logo lettering. */
+.text-gold-gradient {
+  background: linear-gradient(180deg, #fff6cf 0%, #ffd45c 38%, #f2a516 70%, #c06d00 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-shine {
+  background: linear-gradient(90deg, #ffc83d, #fff1c2, #e046f5, #ffc83d);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.panel {
+  background: linear-gradient(180deg, rgb(29 20 50 / 0.85), rgb(21 14 36 / 0.85));
+  border: 1px solid var(--color-line);
+  border-radius: 1.25rem;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
