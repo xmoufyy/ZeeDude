@@ -101,3 +101,19 @@ Also fixed: `start-standalone.mjs` would set `DATABASE_URL` to the string `"unde
 Revised plan SHA256: `d67b7544358ae05fc5006797948acfa5d490ed028b528f9d5aeee11cff4b7627` (the build contract changed; the plan was not re-reviewed, and inspection 2 judges against it).
 
 Re-run proofs after the fixes: `npm test` 84/84; eslint and tsc clean; `verify:concurrency` 4/4; `verify:postgres` all PASS, client restored to sqlite; `npm run build` OK.
+
+### Inspection 2: fresh Codex session, verdict REVISE (inspection budget now exhausted)
+
+- Result: `scratchpad/claudex/inspect2/claudex-tnya438d/result.json`. Session `01a1608b-4a82-73a2-ba00-d4ede2a7947d`, effective model `gpt-6.1-sol` (medium), 100s
+- Inspected snapshot: HEAD `95e22a3` against base `ebd267f`, plan SHA `d67b7544…`. Inspection 1's R1–R4 aren't repeated.
+
+| ID | Sev | Finding | Host position |
+|---|---|---|---|
+| R1 | medium | Only `DATABASE_URL` is resolved from Next env files; `DIRECT_URL` in `.env.production.local` never reaches Prisma (or a different `.env` value is used) | Valid. Affects local Postgres setups using env files; Vercel/Docker set real env vars |
+| R2 | medium | `util.parseEnv` doesn't do Next's `${VAR}` expansion, so `DATABASE_URL="${POSTGRES_PRISMA_URL}"` would pick SQLite | Valid |
+| R3 | medium | `ensure-dev-db` (and `seed`) construct PrismaClient from Prisma's own `.env` loading, not the resolved URL; a `.env.local` override can skip seeding | Valid |
+| R4 | medium | README/entrypoint promise an external `DATABASE_URL` override, but compose doesn't forward `DATABASE_URL`/`DIRECT_URL` | Valid (docs and behaviour mismatch) |
+
+Proposed fix (not applied: no inspection rounds left to review it): load the full environment with `@next/env` `loadEnvConfig` (Next's own precedence and expansion) in `prisma.mjs`, `db-deploy.mjs`, `ensure-dev-db.ts`, `seed.ts` and `start-standalone.mjs`, and pass it to the Prisma subprocesses; forward optional `DATABASE_URL`/`DIRECT_URL` in compose and document the external-database setup.
+
+**Status:** not approved by inspection. Four medium findings are open. The pending decision is the user's: fix now with an extra inspection round, fix without re-inspection, or accept as-is.
