@@ -3,7 +3,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Podium } from "@/components/podium";
-import { getLeaderboardForPeriod, getPastPeriods } from "@/lib/leaderboard";
+import { DelayedNotice } from "@/components/delayed-notice";
+import { loadLeaderboardForPeriod, loadPastPeriods } from "@/lib/public-data";
 import { formatPeriodDate, formatPeriodRange } from "@/lib/period";
 import { formatSol } from "@/lib/sol";
 
@@ -31,15 +32,18 @@ export default function HistoryPage({ searchParams }: PageProps<"/history">) {
 async function PastBoard({ searchParams }: Pick<PageProps<"/history">, "searchParams">) {
   // Read the query first so the database is only hit at request time, never during the build.
   const { period: requested } = await searchParams;
-  const periods = await getPastPeriods();
+  const pastLoad = await loadPastPeriods();
+  const periods = pastLoad.value;
 
   if (periods.length === 0) {
     return <p className="panel px-5 py-10 text-center text-muted">No races have finished yet. The first winners will show up here.</p>;
   }
 
   const selectedId = periods.some((p) => p.id === requested) ? (requested as string) : periods[0].id;
-  const board = await getLeaderboardForPeriod(selectedId);
+  const boardLoad = await loadLeaderboardForPeriod(selectedId);
+  const board = boardLoad.value;
   if (!board) return null;
+  const fallback = pastLoad.fromFallback ? pastLoad : boardLoad.fromFallback ? boardLoad : null;
   const { period, rows } = board;
 
   return (
@@ -70,6 +74,7 @@ async function PastBoard({ searchParams }: Pick<PageProps<"/history">, "searchPa
       </nav>
 
       <section aria-labelledby="past-heading" className="min-w-0 space-y-8">
+        {fallback && <DelayedNotice freshness={{ delayed: true, reason: "database", since: fallback.savedAt }} />}
         <div>
           <h2 id="past-heading" className="font-display text-2xl">
             {period.name}

@@ -2,7 +2,7 @@
 
 Weekly SolPump wager race for the ZeeDude community. Players who sign up with code **ZEEDUDE** compete by total SOL wagered; the top 10 win a share of the prize pool.
 
-> Work in progress. Stage 1 (public UI) and Stage 2 (admin panel) are done. Data providers, polish, and deployment docs come next.
+> Work in progress. Stages 1-3 (public UI, admin panel, data providers + cron) are done. Polish and deployment docs come next.
 
 ## Quick start
 
@@ -64,6 +64,44 @@ Ending a race locks the standings into a final snapshot and creates a payout row
 - Every admin page and Server Action re-checks the session.
 - CSRF: Server Actions only accept same-origin POSTs (Next.js checks `Origin` against `Host`), on top of SameSite=strict cookies.
 - All inputs are validated with zod.
+
+## Data sources
+
+Wager data comes through providers (`src/lib/providers/`). Each one returns `{ username, wagered, rank }[]` for a period, with `wagered` in SOL and an optional `wageredUsd`.
+
+| Provider | How data arrives | Status |
+| --- | --- | --- |
+| `CsvImportProvider` | Admin uploads/pastes a CSV or JSON export | **In use** |
+| `ManualProvider` | Admin adds and edits rows by hand; reads what's stored | **In use** (default `DATA_PROVIDER=manual`) |
+| `SolpumpApiProvider` | Pulled from an official SolPump partner API by the cron job | Stub. Refuses to run and never calls the network |
+
+**Switching to the SolPump API** (only with official partner access, never by scraping private endpoints):
+1. Fill in `request()` and `responseSchema` in `src/lib/providers/solpump-api.ts` from the API docs, set `IMPLEMENTED = true`, and add a test with a sample response.
+2. Set `SOLPUMP_API_URL`, `SOLPUMP_API_KEY` and `DATA_PROVIDER=api`.
+3. Each cron run then replaces the open periods' totals with the API's data. File import and manual edits still work as overrides between runs.
+
+### Scheduled refresh
+
+`GET /api/cron/refresh` with `Authorization: Bearer $CRON_SECRET` runs one refresh:
+1. Creates this week's period if it's missing, copying the last period's prizes (turn off with `AUTO_CREATE_PERIODS=false`).
+2. With `DATA_PROVIDER=api`, fetches fresh totals for every open period.
+3. Saves a snapshot and expires the public cache.
+
+The admin dashboard's **Refresh now** button runs the same steps.
+
+- **Vercel:** `vercel.json` schedules it every 10 minutes and Vercel adds the auth header itself. Sub-daily crons need a Pro plan. On Hobby, use an external scheduler (cron-job.org, GitHub Actions, ...) that sends the header.
+- **Anywhere else:** call it every 5-15 minutes, e.g.
+  ```bash
+  curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://your-site/api/cron/refresh
+  ```
+
+In manual mode there's nothing to pull, so the cron job only creates periods, takes snapshots and refreshes the cache.
+
+### When something fails
+
+- **Data source fails** (e.g. API down): existing totals are kept, the dashboard shows the error, and the public page shows *"Data may be delayed"* until a later run succeeds.
+- **Database or cache fails:** public pages serve the last good copy, kept in memory and on disk in `FALLBACK_CACHE_DIR` (default: OS temp dir), with the same notice. Pages never show an error just because the DB is briefly unreachable, as long as they've loaded successfully once.
+- **Stale data:** if a live race hasn't been updated for `DATA_STALE_AFTER_MINUTES` (default 24h), the notice appears too, as a nudge to import.
 
 ## How it works
 

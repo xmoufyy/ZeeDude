@@ -6,11 +6,13 @@ import { z } from "zod";
 import { AdminError, assertEditable, finalizePeriod, findOverlappingPeriod, reopenPeriod, snapshotPeriod } from "@/lib/admin-ops";
 import { login, logout, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { parseWagerFile } from "@/lib/import";
+import { saveEntries } from "@/lib/entries";
 import { LEADERBOARD_TAG } from "@/lib/leaderboard";
 import { isValidSplit } from "@/lib/payouts";
 import { fromZonedInputValue } from "@/lib/period";
+import { CsvImportProvider, ProviderError } from "@/lib/providers";
 import { normalizeUsername } from "@/lib/ranking";
+import { runRefresh } from "@/lib/refresh";
 
 export type ActionResult = { ok: boolean; message: string; details?: string[] } | null;
 
@@ -183,35 +185,26 @@ export async function importEntriesAction(periodId: string, _prev: ActionResult,
       throw new AdminError("Choose a file or paste data to import.");
     }
 
-    const parsed = parseWagerFile(text, format);
-    if (!parsed.ok) return { ok: false, message: "Nothing was imported. Fix these problems and try again:", details: parsed.errors };
+    const provider = new CsvImportProvider(text, format);
+    let entries;
+    try {
+      entries = await provider.fetchEntries();
+    } catch (error) {
+      if (error instanceof ProviderError) return { ok: false, message: error.message, details: error.details };
+      throw error;
+    }
 
-    // Usernames are matched case-insensitively against existing rows so a
-    // re-import updates players instead of duplicating them.
-    const existing = await db.wagerEntry.findMany({ where: { periodId }, select: { id: true, username: true } });
-    const existingByKey = new Map(existing.map((e) => [normalizeUsername(e.username), e]));
-
-    await db.$transaction([
-      ...(mode === "replace" ? [db.wagerEntry.deleteMany({ where: { periodId } })] : []),
-      ...parsed.rows.map((row) => {
-        const match = mode === "merge" ? existingByKey.get(normalizeUsername(row.username)) : undefined;
-        const data = { wageredSol: row.wageredSol, wageredUsd: row.wageredUsd ?? null, source: format };
-        return match
-          ? db.wagerEntry.update({ where: { id: match.id }, data })
-          : db.wagerEntry.create({ data: { ...data, periodId, username: row.username } });
-      }),
-      db.period.update({ where: { id: periodId }, data: { dataUpdatedAt: new Date() } }),
-    ]);
+    await saveEntries(periodId, entries, mode, format);
     await snapshotPeriod(periodId);
     changed();
 
     const notes = [
-      parsed.duplicatesMerged ? `${parsed.duplicatesMerged} duplicate rows were added together` : "",
-      parsed.skippedBlank ? `${parsed.skippedBlank} blank rows skipped` : "",
+      provider.stats.duplicatesMerged ? `${provider.stats.duplicatesMerged} duplicate rows were added together` : "",
+      provider.stats.skippedBlank ? `${provider.stats.skippedBlank} blank rows skipped` : "",
     ].filter(Boolean);
     return {
       ok: true,
-      message: `Imported ${parsed.rows.length} players (${mode === "replace" ? "replaced all existing rows" : "merged with existing rows"}).`,
+      message: `Imported ${entries.length} players (${mode === "replace" ? "replaced all existing rows" : "merged with existing rows"}).`,
       details: notes,
     };
   });
@@ -309,9 +302,15 @@ export async function setMaskingAction(_prev: ActionResult, form: FormData): Pro
 
 export async function refreshAction(_prev: ActionResult): Promise<ActionResult> {
   return guarded(async () => {
-    const live = await db.period.findMany({ where: { finalizedAt: null }, select: { id: true } });
-    for (const p of live) await snapshotPeriod(p.id);
+    const report = await runRefresh();
     changed();
-    return { ok: true, message: "Leaderboard refreshed. The public site now shows the latest data." };
+    const details = [
+      report.createdPeriod ? `Created this week’s period: ${report.createdPeriod}` : "",
+      ...report.refreshed.map((r) => `${r.period}: ${r.players} players fetched`),
+      ...report.errors,
+    ].filter(Boolean);
+    return report.ok
+      ? { ok: true, message: "Leaderboard refreshed. The public site now shows the latest data.", details }
+      : { ok: false, message: "Refresh ran, but the data source failed. The site keeps showing the last saved data.", details };
   });
 }

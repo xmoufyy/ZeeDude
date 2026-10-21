@@ -1,5 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "./db";
+import type { SourceStatus } from "./freshness";
 import { maskUsername } from "./mask";
 import { computePlacePrizes, type PlacePrize } from "./payouts";
 import { computeStandings, parseSplit, type StandingRow } from "./standings";
@@ -32,6 +33,8 @@ export type LeaderboardView = {
   playerCount: number;
   dataUpdatedAt: string | null;
   masked: boolean;
+  /** Health of the automatic data source, for the "may be delayed" notice. */
+  source: SourceStatus;
 };
 
 type PeriodRecord = NonNullable<Awaited<ReturnType<typeof db.period.findFirst>>>;
@@ -47,6 +50,18 @@ function summarize(period: PeriodRecord): PeriodSummary {
   };
 }
 
+async function sourceStatus(): Promise<SourceStatus> {
+  // Written by the refresh job (src/lib/refresh.ts).
+  const row = await db.setting.findUnique({ where: { key: "providerStatus" } });
+  if (!row) return null;
+  try {
+    const { pull, lastSuccessAt, lastErrorAt } = JSON.parse(row.value) as NonNullable<SourceStatus>;
+    return { pull, lastSuccessAt, lastErrorAt };
+  } catch {
+    return null;
+  }
+}
+
 async function shouldMask(): Promise<boolean> {
   const setting = await db.setting.findUnique({ where: { key: "maskUsernames" } });
   return setting?.value !== "false";
@@ -55,7 +70,7 @@ async function shouldMask(): Promise<boolean> {
 type SnapshotRow = StandingRow;
 
 async function buildView(period: PeriodRecord): Promise<LeaderboardView> {
-  const masked = await shouldMask();
+  const [masked, source] = await Promise.all([shouldMask(), sourceStatus()]);
   const name = (username: string) => (masked ? maskUsername(username) : username);
   const prizes = computePlacePrizes(period.prizePoolSol, parseSplit(period.payoutSplit));
 
@@ -91,6 +106,7 @@ async function buildView(period: PeriodRecord): Promise<LeaderboardView> {
     playerCount: ranked.length,
     dataUpdatedAt: period.dataUpdatedAt?.toISOString() ?? null,
     masked,
+    source,
   };
 }
 

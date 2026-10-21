@@ -7,9 +7,11 @@ import { JoinCard } from "@/components/join-card";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Podium } from "@/components/podium";
 import { PrizeBreakdown } from "@/components/prize-breakdown";
-import { getCurrentLeaderboard } from "@/lib/leaderboard";
+import { DelayedNotice } from "@/components/delayed-notice";
+import { assessFreshness, staleAfterMs } from "@/lib/freshness";
 import { requestNow } from "@/lib/request-time";
 import { formatPeriodDate } from "@/lib/period";
+import { loadCurrentLeaderboard } from "@/lib/public-data";
 import { site } from "@/lib/site";
 import { formatSol } from "@/lib/sol";
 
@@ -26,7 +28,8 @@ export default function HomePage() {
 
 async function CurrentBoard() {
   const serverNow = await requestNow();
-  const board = await getCurrentLeaderboard();
+  const loaded = await loadCurrentLeaderboard();
+  const board = loaded.value;
 
   if (!board) {
     return (
@@ -38,6 +41,15 @@ async function CurrentBoard() {
   }
 
   const { period, rows, prizes } = board;
+  const freshness = assessFreshness({
+    now: serverNow,
+    fromFallback: loaded.fromFallback,
+    fallbackSavedAt: loaded.fromFallback ? loaded.savedAt : undefined,
+    live: !period.finalized && Date.parse(period.endsAt) > serverNow,
+    dataUpdatedAt: board.dataUpdatedAt,
+    source: board.source,
+    staleAfterMs: staleAfterMs(),
+  });
 
   return (
     <>
@@ -57,6 +69,7 @@ async function CurrentBoard() {
       </Hero>
 
       <section aria-labelledby="board-heading" className="space-y-8">
+        <DelayedNotice freshness={freshness} />
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 id="board-heading" className="font-display text-2xl sm:text-3xl">

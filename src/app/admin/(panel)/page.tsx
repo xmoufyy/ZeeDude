@@ -5,7 +5,22 @@ import { ActionForm } from "@/components/admin/action-form";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatPeriodDate } from "@/lib/period";
+import { getConfiguredProvider } from "@/lib/providers";
+import { getProviderStatus } from "@/lib/refresh";
 import { formatSol } from "@/lib/sol";
+
+const SOURCE_LABELS: Record<string, string> = {
+  manual: "File import & manual entry",
+  api: "SolPump API (stub)",
+};
+
+function configuredProviderKind(): string {
+  try {
+    return getConfiguredProvider().kind;
+  } catch {
+    return "invalid DATA_PROVIDER";
+  }
+}
 
 export default function AdminDashboardPage() {
   return (
@@ -18,7 +33,8 @@ export default function AdminDashboardPage() {
 async function Dashboard() {
   await requireAdmin();
   const now = new Date();
-  const [current, masking, unpaid, excludedCount] = await Promise.all([
+  const providerKind = configuredProviderKind();
+  const [current, masking, unpaid, excludedCount, status] = await Promise.all([
     db.period.findFirst({
       where: { startsAt: { lte: now }, endsAt: { gt: now }, finalizedAt: null },
       include: { _count: { select: { entries: true } } },
@@ -26,6 +42,7 @@ async function Dashboard() {
     db.setting.findUnique({ where: { key: "maskUsernames" } }),
     db.payout.findMany({ where: { paid: false }, include: { period: { select: { name: true } } }, orderBy: { rank: "asc" } }),
     db.excludedUser.count(),
+    getProviderStatus(),
   ]);
   // Periods past their end date that still need to be ended and paid.
   const needsEnding = await db.period.findMany({ where: { endsAt: { lte: now }, finalizedAt: null }, orderBy: { endsAt: "asc" } });
@@ -79,8 +96,19 @@ async function Dashboard() {
         </section>
 
         <section className="panel space-y-3 p-5">
-          <h2 className="text-sm font-semibold tracking-widest text-muted uppercase">Refresh</h2>
-          <p className="text-sm text-muted">Clears the cache so the public site shows the latest data immediately.</p>
+          <h2 className="text-sm font-semibold tracking-widest text-muted uppercase">Data source</h2>
+          <p className="text-sm">
+            <strong className="text-gold">{SOURCE_LABELS[providerKind] ?? providerKind}</strong>
+            <span className="block text-xs text-muted">
+              Last refresh: {status ? formatPeriodDate(status.lastRunAt) : "never"} (runs every 10 min via cron)
+            </span>
+          </p>
+          {status?.lastErrorAt && (!status.lastSuccessAt || status.lastErrorAt > status.lastSuccessAt) && (
+            <p className="rounded-lg bg-red-400/10 px-3 py-2 text-xs whitespace-pre-line text-red-300">
+              Last refresh failed {formatPeriodDate(status.lastErrorAt)}:{"\n"}
+              {status.lastError}
+            </p>
+          )}
           <ActionForm action={refreshAction} submitLabel="Refresh now" pendingLabel="Refreshing..." variant="plain" />
         </section>
       </div>
