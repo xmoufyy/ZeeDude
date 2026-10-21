@@ -9,7 +9,11 @@ export function isPostgresUrl(url) {
   return /^postgres(ql)?:\/\//i.test((url ?? "").trim());
 }
 
-/** DATABASE_URL from the environment, falling back to the .env file like Prisma does. */
+/**
+ * DATABASE_URL from the environment, falling back to the .env file like Prisma does.
+ * @param {Record<string, string | undefined>} [env]
+ * @param {string} [envFile]
+ */
 export function resolveDatabaseUrl(env = process.env, envFile = ".env") {
   if (env.DATABASE_URL) return env.DATABASE_URL;
   try {

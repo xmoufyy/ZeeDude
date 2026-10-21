@@ -5,17 +5,20 @@
   "scripts": {
     "predev": "tsx prisma/ensure-dev-db.ts",
     "dev": "next dev",
-    "build": "prisma generate && next build",
-    "start": "next start",
+    "build": "node scripts/prisma.mjs generate && next build",
+    "start": "node scripts/start-standalone.mjs",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:push": "prisma db push",
+    "db:push": "node scripts/prisma.mjs db push",
+    "db:deploy": "node scripts/db-deploy.mjs",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio",
-    "postinstall": "prisma generate",
+    "db:studio": "node scripts/prisma.mjs studio",
+    "db:sync-schema": "node scripts/prisma.mjs sync-schema",
+    "postinstall": "node scripts/prisma.mjs generate",
     "admin:password": "tsx scripts/set-admin-password.ts",
-    "verify:concurrency": "node scripts/verify-concurrency-sqlite.mjs"
+    "verify:concurrency": "node scripts/verify-concurrency-sqlite.mjs",
+    "verify:postgres": "node scripts/verify-postgres.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -37,8 +40,5 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.5"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   }
 }

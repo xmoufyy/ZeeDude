@@ -2,11 +2,15 @@
 // right away. Safe to re-run: it wipes and recreates everything.
 //
 //   npm run db:seed
+//
+// Refuses to run against Postgres or with NODE_ENV=production unless you pass
+// --force-wipe, because it deletes every row.
 
 import { PrismaClient } from "@prisma/client";
 import { assignPrizes, computePlacePrizes } from "../src/lib/payouts";
 import { weeklyWindowOffset } from "../src/lib/period";
 import { rankEntries } from "../src/lib/ranking";
+import { isPostgresUrl, resolveDatabaseUrl } from "../scripts/prisma-schema.mjs";
 
 const db = new PrismaClient();
 
@@ -49,6 +53,14 @@ function wagersFor(seed: number, players: number, top: number) {
 }
 
 async function main() {
+  const risky = isPostgresUrl(resolveDatabaseUrl()) || process.env.NODE_ENV === "production";
+  if (risky && !process.argv.includes("--force-wipe")) {
+    console.error(
+      "Refusing to seed: this deletes ALL data and DATABASE_URL looks like a real database. " +
+        "Re-run with `npm run db:seed -- --force-wipe` only if you mean it.",
+    );
+    process.exit(1);
+  }
   await db.snapshot.deleteMany();
   await db.payout.deleteMany();
   await db.wagerEntry.deleteMany();
