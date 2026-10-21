@@ -1,8 +1,8 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "./db";
 import { maskUsername } from "./mask";
-import { assignPrizes, computePlacePrizes, type PlacePrize } from "./payouts";
-import { rankEntries } from "./ranking";
+import { computePlacePrizes, type PlacePrize } from "./payouts";
+import { computeStandings, parseSplit, type StandingRow } from "./standings";
 
 export const LEADERBOARD_TAG = "leaderboard";
 
@@ -47,20 +47,12 @@ function summarize(period: PeriodRecord): PeriodSummary {
   };
 }
 
-function parseSplit(json: string): number[] {
-  const value: unknown = JSON.parse(json);
-  if (!Array.isArray(value) || !value.every((n) => typeof n === "number")) {
-    throw new Error("Stored payout split is not a list of numbers");
-  }
-  return value;
-}
-
 async function shouldMask(): Promise<boolean> {
   const setting = await db.setting.findUnique({ where: { key: "maskUsernames" } });
   return setting?.value !== "false";
 }
 
-type SnapshotRow = { rank: number; username: string; wageredSol: number; prizeSol: number };
+type SnapshotRow = StandingRow;
 
 async function buildView(period: PeriodRecord): Promise<LeaderboardView> {
   const masked = await shouldMask();
@@ -80,9 +72,9 @@ async function buildView(period: PeriodRecord): Promise<LeaderboardView> {
       db.payout.findMany({ where: { periodId: period.id } }),
     ]);
     paidBy = new Map(payouts.map((p) => [p.username, p.paid]));
-    ranked = snapshot ? (JSON.parse(snapshot.data) as SnapshotRow[]) : await liveRanking(period, prizes);
+    ranked = snapshot ? (JSON.parse(snapshot.data) as SnapshotRow[]) : await computeStandings(period);
   } else {
-    ranked = await liveRanking(period, prizes);
+    ranked = await computeStandings(period);
   }
 
   return {
@@ -100,17 +92,6 @@ async function buildView(period: PeriodRecord): Promise<LeaderboardView> {
     dataUpdatedAt: period.dataUpdatedAt?.toISOString() ?? null,
     masked,
   };
-}
-
-async function liveRanking(period: PeriodRecord, prizes: PlacePrize[]): Promise<SnapshotRow[]> {
-  const [entries, excluded] = await Promise.all([
-    db.wagerEntry.findMany({ where: { periodId: period.id }, select: { username: true, wageredSol: true } }),
-    db.excludedUser.findMany({ select: { username: true } }),
-  ]);
-  return assignPrizes(
-    rankEntries(entries, excluded.map((e) => e.username)),
-    prizes,
-  ).map((r) => ({ rank: r.rank, username: r.username, wageredSol: r.wageredSol, prizeSol: r.prizeSol }));
 }
 
 /**

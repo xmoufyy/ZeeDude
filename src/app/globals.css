@@ -113,3 +113,22 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Admin form controls */
+@layer components {
+  .field-label {
+    @apply mb-1 block text-xs font-semibold tracking-wider text-muted uppercase;
+  }
+  .input {
+    @apply w-full rounded-lg border border-line bg-ink/70 px-3 py-2 text-sm text-text placeholder:text-muted/60 focus:border-gold/60 focus:outline-none focus:ring-2 focus:ring-gold/40;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line px-3.5 py-2 text-sm font-semibold text-text transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply border-transparent bg-gradient-to-b from-gold to-gold-deep text-ink hover:brightness-110;
+  }
+  .btn-danger {
+    @apply border-red-400/40 text-red-300 hover:bg-red-400/10;
+  }
+}

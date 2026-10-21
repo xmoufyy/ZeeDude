@@ -55,6 +55,7 @@ async function main() {
   await db.period.deleteMany();
   await db.excludedUser.deleteMany();
   await db.setting.deleteMany();
+  await db.loginAttempt.deleteMany();
 
   await db.setting.create({ data: { key: "maskUsernames", value: "true" } });
   for (const user of EXCLUDED) {

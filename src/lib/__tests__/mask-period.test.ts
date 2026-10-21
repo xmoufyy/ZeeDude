@@ -59,3 +59,14 @@ describe("weeklyWindow (Sunday 5 PM Eastern)", () => {
     expect(weeklyWindowOffset(now, 2).start.toISOString()).toBe("2026-11-01T22:00:00.000Z");
   });
 });
+
+describe("zoned datetime-local values", () => {
+  it("round-trips Eastern wall-clock times", async () => {
+    const { toZonedInputValue, fromZonedInputValue } = await import("../period");
+    const date = fromZonedInputValue("2026-10-25T17:00");
+    expect(date?.toISOString()).toBe("2026-10-25T21:00:00.000Z");
+    expect(toZonedInputValue(date!)).toBe("2026-10-25T17:00");
+    expect(fromZonedInputValue("2026-13-01T00:00")).toBeNull();
+    expect(fromZonedInputValue("yesterday")).toBeNull();
+  });
+});

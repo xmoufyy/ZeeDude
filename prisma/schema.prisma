@@ -98,3 +98,14 @@ model Setting {
   key   String @id
   value String
 }
+
+/// Admin login attempts, for rate limiting brute-force guesses.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+  @@index([createdAt])
+}

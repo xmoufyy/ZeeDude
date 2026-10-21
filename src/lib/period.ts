@@ -134,3 +134,19 @@ const shortFormat = new Intl.DateTimeFormat("en-US", {
 export function formatPeriodRange(start: Date | string, end: Date | string): string {
   return `${shortFormat.format(new Date(start))} – ${shortFormat.format(new Date(end))}`;
 }
+
+/** Date -> "2026-10-25T17:00" as wall-clock time in the leaderboard's zone (for datetime-local inputs). */
+export function toZonedInputValue(date: Date | string, timeZone = DEFAULT_SCHEDULE.timeZone): string {
+  const p = localParts(new Date(date), timeZone);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`;
+}
+
+/** "2026-10-25T17:00" in the leaderboard's zone -> Date, or null if malformed. */
+export function fromZonedInputValue(value: string, timeZone = DEFAULT_SCHEDULE.timeZone): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [year, month, day, hour, minute] = match.slice(1).map(Number);
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) return null;
+  return zonedTimeToUtc(year, month, day, hour, minute, timeZone);
+}

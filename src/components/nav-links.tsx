@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 
 const LINKS = [
   { href: "/", label: "Leaderboard" },
@@ -9,8 +10,21 @@ const LINKS = [
   { href: "/rules", label: "Rules" },
 ];
 
+// usePathname() needs a Suspense boundary on dynamic routes; the fallback is
+// the same links without the active highlight.
 export function NavLinks() {
-  const pathname = usePathname();
+  return (
+    <Suspense fallback={<Links />}>
+      <ActiveLinks />
+    </Suspense>
+  );
+}
+
+function ActiveLinks() {
+  return <Links pathname={usePathname()} />;
+}
+
+function Links({ pathname }: { pathname?: string }) {
   return (
     <nav aria-label="Main" className="flex flex-1 justify-end gap-1 md:flex-none md:justify-start md:pl-4">
       {LINKS.map(({ href, label }) => {

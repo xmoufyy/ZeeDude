@@ -13,13 +13,15 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "admin:password": "tsx scripts/set-admin-password.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
