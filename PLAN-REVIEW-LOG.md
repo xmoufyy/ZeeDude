@@ -185,3 +185,16 @@ User request (mid-loop): add a "My Profile" tab with wallet/socials and a hide-m
   - profile stats showed rank, wager and paid prizes
 - Admin Players page rendered pending/approve and approved/unverify states. Mobile 375px: no overflow; the Menu button opens all 5 tabs.
 - Not verified: a real wallet extension (no Phantom in this browser) and the admin approve button clicked through the UI (approval was done via `reviewClaim` directly).
+
+## Inspection 5: fresh Codex session (via /codex-review → user chose "inspect recent code")
+
+- Contract: `docs/specs/profiles-crew-spec.md` (written for this inspection; not plan-reviewed). Base `dd0077a`, snapshot `63f1182`.
+- Result: `scratchpad/claudex/inspect5/claudex-h3np5mcf/result.json`. Session `01a1624b-2471-7153-9b30-b1ba099e8ee9`, `gpt-6.1-sol`, 123s. Verdict **REVISE**.
+
+| ID | Sev | Finding | Host position |
+|---|---|---|---|
+| R1 | high | Approve/reject is bound only to the player id, so a claim changed after the admin looked can be approved as a different name, and that wallet shows as the new name's payout wallet | **Valid.** Fix: bind the action to the reviewed `solpumpKey` and require the expected status inside the transaction |
+| R2 | medium | Nonce prune, replace, cap check and create are separate steps: concurrent starts can leave 2 valid challenges per wallet or exceed the cap; `WalletNonce.wallet` isn't unique | **Valid.** Fix: one serializable transaction; `@unique` wallet (migration 0003) |
+| R3 | medium | The outage fallback stores names as rendered, so after a player turns on hide-name a DB failure can serve their old full name | **Valid.** Fix: mask every name when serving from the fallback (fail closed) |
+
+Status: open. Review only (no implementation authorized by this command).
