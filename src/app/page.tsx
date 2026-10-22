@@ -8,6 +8,7 @@ import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Podium } from "@/components/podium";
 import { PrizeBreakdown } from "@/components/prize-breakdown";
 import { DelayedNotice } from "@/components/delayed-notice";
+import { GameRules } from "@/components/game-rules";
 import { assessFreshness, staleAfterMs } from "@/lib/freshness";
 import { requestNow } from "@/lib/request-time";
 import { formatPeriodDate } from "@/lib/period";
@@ -79,7 +80,10 @@ async function CurrentBoard() {
               {board.playerCount} players · {formatSol(board.totalWageredSol, { max: 2 })} SOL wagered
             </p>
           </div>
-          <AutoRefresh updatedAt={board.dataUpdatedAt} serverNow={serverNow} />
+          <div className="flex flex-wrap items-center gap-4">
+            <AutoRefresh updatedAt={board.dataUpdatedAt} serverNow={serverNow} />
+            <GameRules />
+          </div>
         </div>
         <div className="pt-6">
           <Podium rows={rows} />

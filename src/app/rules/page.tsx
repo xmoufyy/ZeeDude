@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GAME_WEIGHTS } from "@/lib/game-weights";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -24,7 +25,13 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "How are wagers counted?",
-    a: "Your total is the amount you wager on SolPump during the race window, in SOL, as reported in our SolPump referral data. Only wagers placed between the start and end time count.",
+    a: (
+      <>
+        Your total is the amount you wager on SolPump during the race window, in SOL, as reported in our SolPump referral data. Only
+        wagers placed between the start and end time count. Games count differently:{" "}
+        {GAME_WEIGHTS.map(({ game, percent }) => `${game} ${percent}%`).join(", ")}. So a 10 SOL Blackjack bet adds 2 SOL to your total.
+      </>
+    ),
   },
   {
     q: "Why doesn't my total match what I just bet?",
