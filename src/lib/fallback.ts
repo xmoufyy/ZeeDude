@@ -43,13 +43,19 @@ export function createFallbackStore(dir: string, { rethrow }: Options = {}) {
     }
   }
 
-  /** Runs `load`; on success remembers the result, on failure returns the last remembered one. */
-  async function withFallback<T>(key: string, load: () => Promise<T>): Promise<FallbackResult<T>> {
+  /**
+   * Runs `load`; on success remembers the result, on failure returns the last
+   * remembered one. `sanitize` transforms what gets remembered (memory and
+   * disk), e.g. to strip anything a later setting change could make private.
+   * The live result is returned unchanged.
+   */
+  async function withFallback<T>(key: string, load: () => Promise<T>, sanitize: (value: T) => T = (v) => v): Promise<FallbackResult<T>> {
     try {
       const value = await load();
-      const json = JSON.stringify(value);
+      const saved = sanitize(value);
+      const json = JSON.stringify(saved);
       if (memory.get(key)?.json !== json) {
-        const entry = { savedAt: new Date().toISOString(), json, value };
+        const entry = { savedAt: new Date().toISOString(), json, value: saved };
         memory.set(key, entry);
         await persist(key, entry);
       }
@@ -59,7 +65,9 @@ export function createFallbackStore(dir: string, { rethrow }: Options = {}) {
       const saved = await recall<T>(key);
       if (!saved) throw error;
       console.error(`[fallback] serving saved "${key}" from ${saved.savedAt} after error:`, error);
-      return { value: saved.value, fromFallback: true, savedAt: saved.savedAt };
+      // Sanitize again on the way out: copies saved before a sanitizer existed
+      // (or by an older version) must not leak either.
+      return { value: sanitize(saved.value), fromFallback: true, savedAt: saved.savedAt };
     }
   }
 

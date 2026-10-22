@@ -129,3 +129,48 @@ describe("fallback store rethrow hook", () => {
     await rm(dir, { recursive: true, force: true });
   });
 });
+
+describe("fallback sanitizing (privacy fails closed)", () => {
+  const board = (names: string[]) => ({ masked: false, rows: names.map((name) => ({ name, rank: 1 })) });
+  type Board = ReturnType<typeof board>;
+  const dbDown = async (): Promise<Board> => {
+    throw new Error("db down");
+  };
+
+  it("stores and serves masked names even when the live board showed full names", async () => {
+    const { maskBoardForFallback } = await import("../fallback-sanitize");
+    const dir = await mkdtemp(path.join(tmpdir(), "zd-fallback-"));
+    const store = createFallbackStore(dir);
+    const live = await store.withFallback("b", async () => board(["SolSurfer", "Ze****an"]), maskBoardForFallback);
+    expect(live.value.rows.map((r) => r.name)).toEqual(["SolSurfer", "Ze****an"]); // live result untouched
+
+    store.clearMemory(); // force the disk copy
+    const served = await store.withFallback(
+      "b",
+      dbDown,
+      maskBoardForFallback,
+    );
+    expect(served.fromFallback).toBe(true);
+    expect(served.value.rows.map((r) => r.name)).toEqual(["So****er", "Ze****an"]);
+    expect(served.value.masked).toBe(true);
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("masks copies saved before sanitizing existed", async () => {
+    const { maskBoardForFallback } = await import("../fallback-sanitize");
+    const dir = await mkdtemp(path.join(tmpdir(), "zd-fallback-"));
+    await createFallbackStore(dir).withFallback("old", async () => board(["SolSurfer"])); // saved raw
+    const served = await createFallbackStore(dir).withFallback(
+      "old",
+      dbDown,
+      maskBoardForFallback,
+    );
+    expect(served.value.rows[0].name).toBe("So****er");
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("leaves a null board alone", async () => {
+    const { maskBoardForFallback } = await import("../fallback-sanitize");
+    expect(maskBoardForFallback(null)).toBeNull();
+  });
+});

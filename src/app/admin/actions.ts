@@ -305,9 +305,18 @@ export async function refreshAction(_prev: ActionResult): Promise<ActionResult> 
 
 // ---------------------------------------------------------------- player profiles
 
-export async function reviewClaimAction(playerId: string, decision: "approve" | "reject" | "reset", _prev: ActionResult): Promise<ActionResult> {
+export async function reviewClaimAction(
+  playerId: string,
+  decision: "approve" | "reject" | "reset",
+  reviewedKey: string,
+  _prev: ActionResult,
+): Promise<ActionResult> {
   return guarded(async () => {
-    const player = await reviewClaim(id.parse(playerId), z.enum(["approve", "reject", "reset"]).parse(decision));
+    const player = await reviewClaim(
+      id.parse(playerId),
+      z.enum(["approve", "reject", "reset"]).parse(decision),
+      z.string().min(1).max(64).parse(reviewedKey),
+    );
     changed();
     const label = { approve: "verified", reject: "rejected", reset: "moved back to pending" }[decision];
     return { ok: true, message: `${player.solpumpUsername ?? "Claim"} ${label}.` };

@@ -1,18 +1,15 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
 import { db } from "./db";
 import { createSessionToken, readSessionToken } from "./session";
-import { buildSignInMessage, isSolanaAddress, verifyWalletSignature } from "./solana-auth";
+import { isSolanaAddress, verifyWalletSignature } from "./solana-auth";
+import { ChallengeError, createWalletChallenge } from "./wallet-challenge";
 
 // Player sessions: sign in with a Solana wallet, separate from the admin login.
 
 const COOKIE_NAME = "zd_player";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const NONCE_TTL_MS = 5 * 60 * 1000;
-// Unused challenges are cheap but not free; refuse new ones past this many.
-const MAX_OPEN_NONCES = 1000;
 
 export class PlayerAuthError extends Error {}
 
@@ -48,20 +45,13 @@ export async function currentPlayerWallet(): Promise<string | null> {
 export async function startWalletSignIn(wallet: string): Promise<{ nonce: string; message: string }> {
   if (!isSolanaAddress(wallet)) throw new PlayerAuthError("That doesn't look like a Solana wallet address.");
   signingKey(); // fail early if sessions can't be issued
-  const now = new Date();
-
-  await db.walletNonce.deleteMany({ where: { expiresAt: { lt: now } } });
-  if ((await db.walletNonce.count()) >= MAX_OPEN_NONCES) {
-    throw new PlayerAuthError("Too many sign-in attempts right now. Please try again in a few minutes.");
-  }
-  // Only the newest challenge per wallet stays valid.
-  await db.walletNonce.deleteMany({ where: { wallet } });
-
   const host = (await headers()).get("host") ?? new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost").host;
-  const nonce = randomBytes(16).toString("hex");
-  const message = buildSignInMessage({ domain: host, wallet, nonce, issuedAt: now });
-  await db.walletNonce.create({ data: { nonce, wallet, message, expiresAt: new Date(now.getTime() + NONCE_TTL_MS) } });
-  return { nonce, message };
+  try {
+    return await createWalletChallenge(wallet, host);
+  } catch (error) {
+    if (error instanceof ChallengeError) throw new PlayerAuthError(error.message);
+    throw error;
+  }
 }
 
 /**

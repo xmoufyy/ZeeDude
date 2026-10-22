@@ -91,9 +91,9 @@ async function Players() {
                   <div className="flex flex-wrap justify-end gap-2">
                     {p.solpumpStatus === "pending" && (
                       <>
-                        <ActionForm action={reviewClaimAction.bind(null, p.id, "approve")} submitLabel="Approve" />
+                        <ActionForm action={reviewClaimAction.bind(null, p.id, "approve", p.solpumpKey ?? "")} submitLabel="Approve" />
                         <ActionForm
-                          action={reviewClaimAction.bind(null, p.id, "reject")}
+                          action={reviewClaimAction.bind(null, p.id, "reject", p.solpumpKey ?? "")}
                           submitLabel="Reject"
                           variant="danger"
                           confirm={`Reject ${p.solpumpUsername}? The name is freed so someone else can claim it.`}
@@ -102,7 +102,7 @@ async function Players() {
                     )}
                     {p.solpumpStatus === "approved" && (
                       <ActionForm
-                        action={reviewClaimAction.bind(null, p.id, "reset")}
+                        action={reviewClaimAction.bind(null, p.id, "reset", p.solpumpKey ?? "")}
                         submitLabel="Unverify"
                         variant="plain"
                         confirm={`Move ${p.solpumpUsername} back to pending?`}

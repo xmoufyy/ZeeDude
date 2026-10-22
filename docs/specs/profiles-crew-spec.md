@@ -69,3 +69,11 @@ User request: a tab with a fun name that encourages people to join the Discord. 
 - Browser: simulated Ed25519 wallet sign-in, profile save, toggle persistence, the masking behaviour before and after approval, and the profile stats.
 - A real-wallet sign-in and save also appear in the user's dev-server log.
 - Dashboard copy-wallet rendering was checked through the server-rendered page.
+
+## 6. Revisions after inspection 5 (supersede the matching lines above)
+
+- **Claim review is bound to the reviewed name.** `reviewClaim(playerId, decision, reviewedKey)` refuses the decision unless, inside the serializable transaction, the player's current `solpumpKey` equals `reviewedKey` and the status is the one that decision applies to: approve/reject need `pending`, unverify needs `approved`. The Players page buttons pass the key they displayed.
+- **Wallet challenges are atomic.** Pruning expired challenges, removing the wallet's previous challenge, the cap check (1000) and creation run in one serializable transaction (`src/lib/wallet-challenge.ts`). `WalletNonce.wallet` is `@unique`; Postgres migration `0003_unique_wallet_nonce` clears the short-lived challenges and replaces the index with a unique one. A concurrent same-wallet start that loses gets "Another sign-in for this wallet is in progress".
+- **Fallback copies fail closed on privacy.** Leaderboards kept as outage fallbacks (memory and disk) have every name masked, and served fallbacks are masked again on the way out, which also covers copies saved by older versions. Live pages are unaffected.
+- Proofs added: `verify:concurrency` covers stale or repeated claim reviews, 10 parallel same-wallet starts (exactly 1 challenge) and parallel starts at the cap (never above 1000); unit tests cover the masked fallback.
+- `verify:postgres` runs its steps with async `spawn` (not `spawnSync`), because the embedded Postgres's log pipe is drained by the verifier's event loop. Each step has a 20-minute limit, and each `verify:concurrency` run a 60-second limit, so a stall fails instead of hanging.

@@ -42,10 +42,31 @@ function check(name, ok, detail = "") {
   if (!ok) failures.push(name);
 }
 
-function step(name, args, env) {
+/**
+ * Runs one step as a child process WITHOUT blocking this process's event loop.
+ * The embedded Postgres is our child too, and its log output is drained by our
+ * event loop: a synchronous spawn freezes that, Postgres's log pipe fills up
+ * (conflict-heavy scenarios log an error per serialization failure), and every
+ * Postgres connection then stalls mid-write. Hence async spawn, with a hard limit.
+ */
+function step(name, args, env, timeoutMs = 20 * 60_000) {
   console.log(`\n> ${name}`);
-  const result = spawnSync(process.execPath, args, { stdio: "inherit", env });
-  if (result.status !== 0) throw new Error(`${name} failed (exit ${result.status})`);
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, { stdio: "inherit", env });
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`${name} timed out after ${timeoutMs / 60_000} minutes`));
+    }, timeoutMs);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("exit", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`${name} failed (exit ${code})`));
+    });
+  });
 }
 
 async function waitFor(url, timeoutMs = 60_000) {
@@ -110,14 +131,14 @@ async function main() {
       VERIFY_CONCURRENCY_THROWAWAY: "1",
     };
 
-    step("generate Postgres client", ["scripts/prisma.mjs", "generate"], env);
-    step("migrate deploy", ["scripts/db-deploy.mjs"], env);
+    await step("generate Postgres client", ["scripts/prisma.mjs", "generate"], env);
+    await step("migrate deploy", ["scripts/db-deploy.mjs"], env);
     if (pg) {
       // Drift check: replaying every committed migration on a scratch database
       // must produce exactly the schema (--exit-code fails on any difference).
       await pg.createDatabase("shadow");
       const shadowUrl = databaseUrl.replace(/\/zeedude$/, "/shadow");
-      step(
+      await step(
         "migrations match the schema (drift check)",
         [
           require.resolve("prisma/build/index.js"),
@@ -134,9 +155,9 @@ async function main() {
         env,
       );
     }
-    step("concurrency checks (Postgres)", ["--conditions=react-server", "--import", "tsx", "scripts/verify-concurrency.ts"], env);
-    step("seed demo data", ["--import", "tsx", "prisma/seed.ts", "--force-wipe"], env);
-    step("production build", [NEXT_CLI, "build"], env);
+    await step("concurrency checks (Postgres)", ["--conditions=react-server", "--import", "tsx", "scripts/verify-concurrency.ts"], env);
+    await step("seed demo data", ["--import", "tsx", "prisma/seed.ts", "--force-wipe"], env);
+    await step("production build", [NEXT_CLI, "build"], env);
 
     const standalone = prepareStandalone();
     const port = await freePort();

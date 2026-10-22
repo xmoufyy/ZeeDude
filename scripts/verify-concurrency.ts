@@ -12,7 +12,9 @@ import { finalizePeriod, reopenPeriod, setPayoutPaid } from "../src/lib/admin-op
 import { db } from "../src/lib/db";
 import { MAX_FAILURES_PER_IP, reserveLoginAttempt } from "../src/lib/login-limiter";
 import { weeklyWindow } from "../src/lib/period";
+import { reviewClaim, saveProfile } from "../src/lib/profile";
 import { ensureCurrentPeriod } from "../src/lib/refresh";
+import { createWalletChallenge, MAX_OPEN_NONCES } from "../src/lib/wallet-challenge";
 
 if (process.env.VERIFY_CONCURRENCY_THROWAWAY !== "1") {
   console.error("Refusing to run: this wipes the database. Use npm run verify:concurrency or verify:postgres.");
@@ -20,6 +22,7 @@ if (process.env.VERIFY_CONCURRENCY_THROWAWAY !== "1") {
 }
 
 const REPEATS = 5;
+const RUN_TIMEOUT_MS = 60_000;
 const SPLIT = JSON.stringify([40, 20, 12, 8, 6, 4, 3, 3, 2, 2]);
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -30,6 +33,8 @@ async function wipe() {
   await db.period.deleteMany();
   await db.loginAttempt.deleteMany();
   await db.excludedUser.deleteMany();
+  await db.walletNonce.deleteMany();
+  await db.player.deleteMany();
 }
 
 async function livePeriodWithPlayers(players = 15) {
@@ -133,8 +138,59 @@ const checks: Check[] = [
       return null;
     },
   },
+  {
+    name: "admin approval is bound to the reviewed name (stale or repeated decisions refused)",
+    async run() {
+      await wipe();
+      const wallet = "WalletForClaimTest11111111111111";
+      await db.player.create({ data: { wallet } });
+      const base = { hideName: true };
+      await saveProfile(wallet, { ...base, solpumpUsername: "Alice" });
+      const player = await db.player.findUniqueOrThrow({ where: { wallet } });
+      // The player switches to another name after the admin loaded "alice".
+      await saveProfile(wallet, { ...base, solpumpUsername: "Bob" });
+      const stale = await reviewClaim(player.id, "approve", "alice").then(() => "approved", (e) => String(e.message));
+      const afterStale = await db.player.findUniqueOrThrow({ where: { wallet } });
+      if (stale === "approved" || afterStale.solpumpStatus !== "pending" || afterStale.solpumpKey !== "bob") {
+        return `stale approval was applied (${stale}; status ${afterStale.solpumpStatus}, key ${afterStale.solpumpKey})`;
+      }
+      await reviewClaim(player.id, "approve", "bob");
+      const again = await reviewClaim(player.id, "reject", "bob").then(() => "rejected", () => "refused");
+      const final = await db.player.findUniqueOrThrow({ where: { wallet } });
+      if (again !== "refused" || final.solpumpStatus !== "approved") return `reject after approve was applied (${final.solpumpStatus})`;
+      return null;
+    },
+  },
+  {
+    name: "10 parallel sign-in starts for one wallet -> exactly 1 open challenge",
+    async run() {
+      await wipe();
+      const wallet = "SameWallet1111111111111111111111";
+      const results = await settle(Array.from({ length: 10 }, () => () => createWalletChallenge(wallet, "verify.test")));
+      const rows = await db.walletNonce.count({ where: { wallet } });
+      const unexpected = results.filter(
+        (r) => r.status === "rejected" && !/in progress|try again/i.test(String((r as PromiseRejectedResult).reason)),
+      );
+      if (rows !== 1) return `expected 1 challenge for the wallet, found ${rows}`;
+      if (unexpected.length) return `unexpected errors: ${unexpected.map((u) => String((u as PromiseRejectedResult).reason)).join("; ")}`;
+      return null;
+    },
+  },
+  {
+    name: `parallel sign-in starts near the cap -> never more than ${MAX_OPEN_NONCES} open challenges`,
+    async run() {
+      await wipe();
+      const future = new Date(Date.now() + 60_000);
+      await db.walletNonce.createMany({
+        data: Array.from({ length: MAX_OPEN_NONCES - 5 }, (_, i) => ({ nonce: `fill${i}`, wallet: `FillWallet${i}`, message: "x", expiresAt: future })),
+      });
+      await settle(Array.from({ length: 20 }, (_, i) => () => createWalletChallenge(`CapWallet${i}`, "verify.test")));
+      const total = await db.walletNonce.count();
+      if (total > MAX_OPEN_NONCES) return `${total} open challenges (cap ${MAX_OPEN_NONCES})`;
+      return null;
+    },
+  },
 ];
-
 async function main() {
   const target = (process.env.DATABASE_URL ?? "").split(":")[0];
   console.log(`Concurrency checks against ${target} (each repeated ${REPEATS}x)`);
@@ -143,8 +199,14 @@ async function main() {
     const problems: string[] = [];
     for (let i = 1; i <= REPEATS; i++) {
       try {
-        const problem = await check.run();
+        // A run that never settles (e.g. a stalled database connection) fails
+        // the check instead of hanging the verifier forever.
+        const problem = await Promise.race([
+          check.run(),
+          new Promise<string>((resolve) => setTimeout(() => resolve(`timed out after ${RUN_TIMEOUT_MS / 1000}s`), RUN_TIMEOUT_MS).unref()),
+        ]);
         if (problem) problems.push(`run ${i}: ${problem}`);
+        if (problem?.startsWith("timed out")) break; // later runs would hit the same stall
       } catch (error) {
         problems.push(`run ${i}: threw ${error instanceof Error ? error.message : String(error)}`);
       }

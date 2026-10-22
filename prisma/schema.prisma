@@ -139,11 +139,11 @@ model Player {
 /// signature is checked against what the server issued, not what the client sends back.
 model WalletNonce {
   nonce     String   @id
-  wallet    String
+  /// Unique: only one open sign-in challenge per wallet.
+  wallet    String   @unique
   message   String
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  @@index([wallet])
   @@index([expiresAt])
 }

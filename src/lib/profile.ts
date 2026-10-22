@@ -102,13 +102,29 @@ export async function playerStats(solpumpKey: string): Promise<PlayerStats> {
   };
 }
 
-/** Admin: approve or reject a pending SolPump username claim. */
-export async function reviewClaim(playerId: string, decision: "approve" | "reject" | "reset") {
+const REVIEWABLE_FROM: Record<"approve" | "reject" | "reset", ClaimStatus> = {
+  approve: "pending",
+  reject: "pending",
+  reset: "approved",
+};
+
+/**
+ * Admin: approve, reject or unverify a SolPump username claim.
+ * `reviewedKey` is the (lowercased) name the admin was looking at. If the
+ * player changed their claim since the page loaded, the decision is refused
+ * instead of being applied to a name the admin never reviewed.
+ */
+export async function reviewClaim(playerId: string, decision: "approve" | "reject" | "reset", reviewedKey: string) {
   return serializable(async (tx) => {
     const player = await tx.player.findUnique({ where: { id: playerId } });
     if (!player) throw new ProfileError("Player not found.");
+    if (!player.solpumpKey || player.solpumpKey !== reviewedKey) {
+      throw new ProfileError("This player changed their SolPump username since you loaded the page. Review it again.");
+    }
+    if (player.solpumpStatus !== REVIEWABLE_FROM[decision]) {
+      throw new ProfileError(`This claim is now "${player.solpumpStatus}", so it can't be changed that way. Refresh and review again.`);
+    }
     if (decision === "approve") {
-      if (!player.solpumpKey) throw new ProfileError("This player hasn't claimed a SolPump username.");
       return tx.player.update({ where: { id: playerId }, data: { solpumpStatus: "approved" } });
     }
     if (decision === "reject") {

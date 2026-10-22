@@ -198,3 +198,11 @@ User request (mid-loop): add a "My Profile" tab with wallet/socials and a hide-m
 | R3 | medium | The outage fallback stores names as rendered, so after a player turns on hide-name a DB failure can serve their old full name | **Valid.** Fix: mask every name when serving from the fallback (fail closed) |
 
 Status: open. Review only (no implementation authorized by this command).
+
+### Fix round for inspection 5 (user-authorized: fix R1–R3, then one more fresh inspection)
+
+- R1: `reviewClaim(playerId, decision, reviewedKey)` checks, inside the transaction, that the key matches what the admin reviewed and that the status fits the decision. Players page buttons bind the displayed key.
+- R2: `src/lib/wallet-challenge.ts` prunes, replaces, cap-checks and creates in one serializable transaction. `WalletNonce.wallet` is `@unique` (migration `0003_unique_wallet_nonce` clears challenges first).
+- R3: fallback copies are sanitized with every name masked, both when saved and when served (this covers older raw copies).
+- Found while proving these: `verify:postgres` intermittently hung (once ~40 minutes; once at run 4 of the same-wallet scenario). Diagnosis: 600 standalone sign-in starts never stalled, so the cause was the harness, not the app. `spawnSync` froze the verifier's event loop, and the embedded Postgres (a child of the verifier) blocked on a full stderr log pipe after many serialization-failure log lines. Fix: async `step()`, plus per-step (20 min) and per-scenario (60 s) timeouts.
+- Proofs: `npm test` 107/107; tsc and eslint clean; `verify:concurrency` 7/7 (new: stale-claim review, same-wallet starts, cap); `verify:postgres` 17/17 on two consecutive runs with the drift check clean for 3 migrations.
