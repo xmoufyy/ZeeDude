@@ -71,19 +71,17 @@ async function CurrentBoard() {
 
       <section aria-labelledby="board-heading" className="space-y-8">
         <DelayedNotice freshness={freshness} />
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
             <h2 id="board-heading" className="font-display text-2xl sm:text-3xl">
               This Week&apos;s <span className="text-gold-gradient">Leaderboard</span>
             </h2>
-            <p className="mt-1 text-muted">
-              {board.playerCount} players · {formatSol(board.totalWageredSol, { max: 2 })} SOL wagered
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <AutoRefresh updatedAt={board.dataUpdatedAt} serverNow={serverNow} />
             <GameRules />
           </div>
+          <p className="text-muted">
+            {board.playerCount} players · {formatSol(board.totalWageredSol, { max: 2 })} SOL wagered
+          </p>
+          <AutoRefresh updatedAt={board.dataUpdatedAt} serverNow={serverNow} />
         </div>
         <div className="pt-6">
           <Podium rows={rows} />
