@@ -18,6 +18,13 @@ import {
 } from "@/lib/admin-ops";
 import { login, logout, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { parseAffiliatePaste } from "@/lib/affiliate";
+import {
+  deleteAffiliateSnapshot,
+  type PeriodOutcome,
+  previewAffiliateSnapshot,
+  saveAffiliateSnapshot,
+} from "@/lib/affiliate-import";
 import { saveEntries } from "@/lib/entries";
 import { LEADERBOARD_TAG } from "@/lib/leaderboard";
 import { isValidSplit } from "@/lib/payouts";
@@ -25,7 +32,7 @@ import { fromZonedInputValue } from "@/lib/period";
 import { CsvImportProvider, ProviderError } from "@/lib/providers";
 import { ProfileError, reviewClaim } from "@/lib/profile";
 import { normalizeUsername } from "@/lib/ranking";
-import { runRefresh } from "@/lib/refresh";
+import { ensureCurrentPeriod, runRefresh } from "@/lib/refresh";
 import { BusyError } from "@/lib/tx";
 
 export type ActionResult = { ok: boolean; message: string; details?: string[] } | null;
@@ -39,7 +46,7 @@ function changed() {
 }
 
 /** Wraps an action: checks the admin session and turns expected errors into messages. */
-async function guarded(run: () => Promise<ActionResult>): Promise<ActionResult> {
+async function guarded<R extends ActionResult>(run: () => Promise<R>): Promise<R | ActionResult> {
   await requireAdmin();
   try {
     return await run();
@@ -320,5 +327,88 @@ export async function reviewClaimAction(
     changed();
     const label = { approve: "verified", reject: "rejected", reset: "moved back to pending" }[decision];
     return { ok: true, message: `${player.solpumpUsername ?? "Claim"} ${label}.` };
+  });
+}
+
+// ---------------------------------------------------------------- SolPump affiliate list
+
+export type AffiliatePeriodPreview = {
+  periodName: string;
+  baselineAt: string | null;
+  latestAt: string | null;
+  players: number;
+  totalSol: number;
+  top: { username: string; wageredSol: number; lifetimeSol: number }[];
+  warnings: string[];
+};
+export type AffiliateResult = (NonNullable<ActionResult> & { periods?: AffiliatePeriodPreview[] }) | null;
+
+function describeOutcomes(outcomes: PeriodOutcome[]): AffiliatePeriodPreview[] {
+  return outcomes.map((o) => ({
+    periodName: o.periodName,
+    baselineAt: o.baselineAt?.toISOString() ?? null,
+    latestAt: o.latestAt?.toISOString() ?? null,
+    players: o.rows.length,
+    totalSol: o.rows.reduce((sum, r) => sum + r.wageredSol, 0),
+    top: o.rows.slice(0, 15),
+    warnings: o.warnings,
+  }));
+}
+
+/** Preview or save a paste of SolPump's affiliate list (all-time totals). */
+export async function affiliateImportAction(_prev: AffiliateResult, form: FormData): Promise<AffiliateResult> {
+  return guarded(async (): Promise<AffiliateResult> => {
+    const intent = z.enum(["preview", "save"]).parse(form.get("intent"));
+    const text = z.string().max(MAX_UPLOAD_BYTES, "The paste is larger than 2 MB.").parse(form.get("paste") ?? "");
+    const takenAtRaw = z.string().max(32).parse(form.get("takenAt") ?? "");
+    const takenAt = takenAtRaw ? fromZonedInputValue(takenAtRaw) : new Date();
+    if (!takenAt) throw new AdminError("The copy time isn't a valid date.");
+
+    const parsed = parseAffiliatePaste(text);
+    if (parsed.errors.length) return { ok: false, message: "Couldn't read the paste:", details: parsed.errors.slice(0, 10) };
+
+    // Make sure this week's period exists so the paste has somewhere to go.
+    await ensureCurrentPeriod();
+    if (intent === "preview") {
+      const outcomes = await previewAffiliateSnapshot(parsed.rows, takenAt);
+      return {
+        ok: true,
+        message: `Read ${parsed.rows.length} players. Nothing is saved yet.`,
+        details: parsed.warnings,
+        periods: describeOutcomes(outcomes),
+      };
+    }
+
+    const outcomes = await saveAffiliateSnapshot(parsed.rows, takenAt);
+    for (const o of outcomes) if (o.baselineAt) await snapshotPeriod(o.periodId);
+    changed();
+    return {
+      ok: true,
+      message: `Saved a copy of ${parsed.rows.length} players.`,
+      details: [
+        ...parsed.warnings,
+        ...outcomes.map((o) =>
+          o.baselineAt
+            ? `${o.periodName}: leaderboard updated (${o.rows.length} players).`
+            : `${o.periodName}: saved as the starting point; totals appear after the next copy.`,
+        ),
+      ],
+      periods: describeOutcomes(outcomes),
+    };
+  });
+}
+
+export async function deleteAffiliateSnapshotAction(snapshotId: string, _prev: ActionResult): Promise<ActionResult> {
+  return guarded(async () => {
+    const outcomes = await deleteAffiliateSnapshot(id.parse(snapshotId));
+    for (const o of outcomes) if (o.baselineAt) await snapshotPeriod(o.periodId);
+    changed();
+    return {
+      ok: true,
+      message: "Copy deleted.",
+      details: outcomes.map((o) =>
+        o.baselineAt ? `${o.periodName}: leaderboard recalculated.` : `${o.periodName}: no earlier copy left to compare with, so its leaderboard was left as it was.`,
+      ),
+    };
   });
 }

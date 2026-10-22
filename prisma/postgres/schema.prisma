@@ -152,3 +152,32 @@ model WalletNonce {
 
   @@index([expiresAt])
 }
+
+/// A copy of SolPump's affiliate list, which shows each referral's ALL-TIME
+/// wagered total. A period's wagers are the latest copy minus the copy taken
+/// closest to the period's start.
+model AffiliateSnapshot {
+  id        String   @id @default(cuid())
+  /// When the list was copied from SolPump.
+  takenAt   DateTime
+  createdAt DateTime @default(now())
+
+  readings AffiliateReading[]
+
+  @@index([takenAt])
+}
+
+/// One player's all-time wagered total in an affiliate snapshot.
+model AffiliateReading {
+  id          String @id @default(cuid())
+  snapshotId  String
+  username    String
+  /// Lowercased username, for matching across snapshots.
+  key         String
+  lifetimeSol Float
+
+  snapshot AffiliateSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, key])
+  @@index([key])
+}

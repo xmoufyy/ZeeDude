@@ -22,7 +22,7 @@ Open http://localhost:3000. The first `npm run dev` creates a local SQLite datab
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Sync the SQLite schema, seed if empty, start the dev server (never touches a Postgres URL) |
-| `npm test` | Unit tests: ranking, ties, payouts, time zones, import parsing, auth, limiter, schema sync |
+| `npm test` | Unit tests: ranking, ties, payouts, time zones, import and affiliate-list parsing, auth, limiter, schema sync |
 | `npm run build` | Generate the Prisma client for `DATABASE_URL` and build (no database access) |
 | `npm start` | Run the production build (standalone server; `PORT`/`HOSTNAME` supported) |
 | `npm run db:deploy` | Bring the schema up to date: `migrate deploy` on Postgres, `db push` on SQLite |
@@ -45,7 +45,19 @@ Go to `/admin` and log in with the password you set.
 | Periods | Create races (dates in Eastern Time, prize pool, payout split). Overlapping dates are refused |
 | Period detail | Import CSV/JSON, add/edit/remove players, preview standings with real names, end the race to lock winners, mark prizes paid with a tx note, reopen, delete |
 | Players | Approve or reject the SolPump usernames players claim on My Profile; see their verified wallets and socials |
+| SolPump import | Paste SolPump's affiliate list (all-time totals); weekly wagers are worked out for you |
 | Excluded users | Ban cheaters, staff and alts from every leaderboard |
+
+### Weekly totals from SolPump's affiliate list (recommended)
+
+SolPump's affiliate page shows each referral's **all-time** wagered total (it already counts Blackjack at 20%). On **Admin → SolPump import**, select the whole list on that page, copy it, paste it in, and press **Preview**, then **Save copy**.
+
+- A period's wager for each player = their total in the latest copy − their total in the copy taken closest to the period's start. Players who aren't in the starting copy joined since, so their whole total counts.
+- **Every Sunday at 5 PM ET**, save a copy. It ends the old week and starts the new one (within an hour either way is treated as on time; further off, the preview warns you).
+- **During the week**, save a copy whenever you want the leaderboard updated. Each save replaces the rows of every open period it affects.
+- The first copy ever only sets the starting point; totals show up after the next one.
+- Delete a mistaken copy from the list on the same page; the affected open periods are recalculated.
+- The preview warns if players from the earlier copy are missing (usually a page of the list wasn't copied) or if anyone's total went down.
 
 ### Importing wager data
 

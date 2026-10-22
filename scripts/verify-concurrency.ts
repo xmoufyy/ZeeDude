@@ -9,6 +9,7 @@
 //   node --conditions=react-server --import tsx scripts/verify-concurrency.ts
 
 import { finalizePeriod, reopenPeriod, setPayoutPaid } from "../src/lib/admin-ops";
+import { deleteAffiliateSnapshot, previewAffiliateSnapshot, saveAffiliateSnapshot } from "../src/lib/affiliate-import";
 import { db } from "../src/lib/db";
 import { MAX_FAILURES_PER_IP, reserveLoginAttempt } from "../src/lib/login-limiter";
 import { weeklyWindow } from "../src/lib/period";
@@ -34,6 +35,7 @@ async function wipe() {
   await db.loginAttempt.deleteMany();
   await db.excludedUser.deleteMany();
   await db.walletNonce.deleteMany();
+  await db.affiliateSnapshot.deleteMany();
   await db.player.deleteMany();
 }
 
@@ -187,6 +189,51 @@ const checks: Check[] = [
       await settle(Array.from({ length: 20 }, (_, i) => () => createWalletChallenge(`CapWallet${i}`, "verify.test")));
       const total = await db.walletNonce.count();
       if (total > MAX_OPEN_NONCES) return `${total} open challenges (cap ${MAX_OPEN_NONCES})`;
+      return null;
+    },
+  },
+  {
+    name: "affiliate copies -> period wagers = latest copy minus start-of-period copy; parallel saves settle on the latest",
+    async run() {
+      await wipe();
+      const now = Date.now();
+      const period = await db.period.create({
+        data: { name: "Affiliate test", startsAt: new Date(now - 2 * DAY), endsAt: new Date(now + 5 * DAY), prizePoolSol: 10, payoutSplit: SPLIT },
+      });
+      const at = (offsetMs: number) => new Date(period.startsAt.getTime() + offsetMs);
+      const board = async () =>
+        Object.fromEntries((await db.wagerEntry.findMany({ where: { periodId: period.id } })).map((e) => [e.username, e.wageredSol]));
+
+      // Start-of-period copy: nothing to compare with yet, so the board is untouched.
+      await saveAffiliateSnapshot([{ username: "Alice", lifetimeSol: 100 }, { username: "Bob", lifetimeSol: 5 }], at(2 * 60_000));
+      if (Object.keys(await board()).length) return "the first copy changed the leaderboard";
+
+      const second = await saveAffiliateSnapshot(
+        [{ username: "Alice", lifetimeSol: 130.5 }, { username: "Bob", lifetimeSol: 5 }, { username: "Cara", lifetimeSol: 2 }],
+        at(DAY),
+      );
+      let got = JSON.stringify(await board());
+      if (got !== JSON.stringify({ Alice: 30.5, Cara: 2 }) && got !== JSON.stringify({ Cara: 2, Alice: 30.5 })) return `after 2nd copy: ${got}`;
+      if (second[0]?.rows.length !== 2) return "save didn't report the period's rows";
+
+      const before = got;
+      await previewAffiliateSnapshot([{ username: "Alice", lifetimeSol: 999 }], at(DAY + 60_000));
+      if (JSON.stringify(await board()) !== before) return "preview wrote to the leaderboard";
+
+      // Parallel saves with different copy times: the board ends on the latest one.
+      const times = [3, 1, 4, 2, 5].map((h) => at(DAY + h * 60 * 60_000));
+      await settle(times.map((t, i) => () => saveAffiliateSnapshot([{ username: "Alice", lifetimeSol: 140 + i }], t)));
+      const latestIndex = times.indexOf(times.reduce((a, b) => (a > b ? a : b)));
+      const alice = (await board()).Alice;
+      if (Math.abs(alice - (40 + latestIndex)) > 1e-9) return `after parallel saves Alice has ${alice}, expected ${40 + latestIndex}`;
+
+      // Deleting the latest copy falls back to the one before it.
+      const latest = await db.affiliateSnapshot.findFirstOrThrow({ orderBy: { takenAt: "desc" } });
+      await deleteAffiliateSnapshot(latest.id);
+      const secondLatest = times.filter((t) => t.getTime() !== latest.takenAt.getTime()).reduce((a, b) => (a > b ? a : b));
+      const expected = 40 + times.indexOf(secondLatest);
+      got = JSON.stringify(await board());
+      if (got !== JSON.stringify({ Alice: expected })) return `after delete: ${got}, expected Alice ${expected}`;
       return null;
     },
   },
