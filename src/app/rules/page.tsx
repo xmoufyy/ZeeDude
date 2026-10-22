@@ -3,7 +3,7 @@ import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Rules & FAQ",
-  description: "How the ZeeDude SolPump wager leaderboard works: eligibility, how wagers count, payouts, and responsible gambling.",
+  description: "How the ZeeDude SolPump wager leaderboard works: eligibility, how wagers count, payouts and disqualification.",
 };
 
 // DRAFT rules: placeholders until ZeeDude confirms the real terms. Edit freely.
@@ -12,7 +12,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "Who can enter?",
     a: (
       <>
-        Anyone 18 or older (or the legal gambling age where you live, if higher) who signs up on SolPump with code{" "}
+        Anyone who signs up on SolPump with code{" "}
         <strong className="text-gold">{site.referralCode}</strong> or through our referral link. You must be allowed to use
         SolPump where you live. Accounts that signed up under a different code don&apos;t count.
       </>
@@ -59,13 +59,6 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
 ];
 
-const HELP = [
-  { name: "National Problem Gambling Helpline (US)", detail: "Call or text 1-800-GAMBLER", href: "https://www.ncpgambling.org/help-treatment/" },
-  { name: "BeGambleAware (UK)", detail: "0808 8020 133, free 24/7", href: "https://www.begambleaware.org/" },
-  { name: "Gamblers Anonymous", detail: "Meetings worldwide", href: "https://gamblersanonymous.org/" },
-  { name: "Gambling Therapy", detail: "Free global online support", href: "https://www.gamblingtherapy.org/" },
-];
-
 export default function RulesPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-12 px-4 pt-8 sm:pt-12">
@@ -87,33 +80,6 @@ export default function RulesPage() {
             <div className="text-muted">{item.a}</div>
           </details>
         ))}
-      </section>
-
-      <section aria-labelledby="rg-heading" className="panel space-y-4 border-magenta/30 p-6">
-        <div className="flex items-center gap-3">
-          <span className="rounded-lg border-2 border-magenta px-2 py-0.5 font-display text-magenta">18+</span>
-          <h2 id="rg-heading" className="font-display text-xl">Play Responsibly</h2>
-        </div>
-        <p className="text-muted">
-          Gambling should be entertainment, never a way to make money. Set a budget before you play, never chase losses, and
-          take breaks. Leaderboards can push you to wager more than you planned. Don&apos;t let them. If gambling is
-          causing you or someone close to you harm, free and confidential help is available:
-        </p>
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {HELP.map((h) => (
-            <li key={h.name}>
-              <a
-                href={h.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block rounded-xl border border-line bg-ink/40 p-4 transition hover:border-cyan/50"
-              >
-                <span className="block font-semibold text-cyan">{h.name}</span>
-                <span className="text-sm text-muted">{h.detail}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
       </section>
     </div>
   );

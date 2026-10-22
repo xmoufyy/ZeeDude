@@ -11,20 +11,6 @@ export function SiteFooter() {
             ZeeDude Rewards is a community site. It is <strong className="text-text">not affiliated with, endorsed by, or
             operated by SolPump</strong>. Prizes are paid by ZeeDude, not by SolPump.
           </p>
-          <p className="max-w-2xl">
-            <span className="mr-1.5 inline-flex rounded-md border border-magenta/50 px-1.5 py-0.5 text-xs font-bold text-magenta">
-              18+
-            </span>
-            Gambling involves risk. Only wager what you can afford to lose. If gambling stops being fun, get help at{" "}
-            <a className="text-cyan underline-offset-2 hover:underline" href="https://www.ncpgambling.org/help-treatment/" target="_blank" rel="noopener noreferrer">
-              1-800-GAMBLER
-            </a>{" "}
-            or{" "}
-            <a className="text-cyan underline-offset-2 hover:underline" href="https://www.begambleaware.org/" target="_blank" rel="noopener noreferrer">
-              BeGambleAware
-            </a>
-            .
-          </p>
         </div>
         <div className="flex flex-col gap-3 text-sm md:items-end">
           <nav aria-label="Footer" className="flex flex-wrap gap-x-4 gap-y-2">

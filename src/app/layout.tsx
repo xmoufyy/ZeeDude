@@ -29,7 +29,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" className={`${bungee.variable} ${outfit.variable} antialiased`}>
+    // suppressHydrationWarning: browser extensions (e.g. LanguageTool, Grammarly)
+    // add attributes to <html> before React hydrates. This only ignores
+    // attribute differences on this one element, not its children.
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={`${bungee.variable} ${outfit.variable} antialiased`}
+      suppressHydrationWarning
+    >
       <body className="flex min-h-dvh flex-col">
         <a
           href="#main"

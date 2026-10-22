@@ -127,14 +127,6 @@ export default function CrewPage() {
           </li>
         </ol>
       </section>
-
-      <p className="text-center text-xs text-muted">
-        18+ only. Gambling involves risk; play responsibly. See the{" "}
-        <Link href="/rules" className="text-cyan hover:underline">
-          rules
-        </Link>{" "}
-        for help resources.
-      </p>
     </div>
   );
 }
