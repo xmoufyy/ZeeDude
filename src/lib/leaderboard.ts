@@ -2,6 +2,8 @@ import { cacheLife, cacheTag } from "next/cache";
 import { db } from "./db";
 import type { SourceStatus } from "./freshness";
 import { maskUsername } from "./mask";
+import { approvedNamePreferences } from "./profile";
+import { normalizeUsername } from "./ranking";
 import { computePlacePrizes, type PlacePrize } from "./payouts";
 import { computeStandings, parseSplit, type StandingRow } from "./standings";
 
@@ -70,8 +72,11 @@ async function shouldMask(): Promise<boolean> {
 type SnapshotRow = StandingRow;
 
 async function buildView(period: PeriodRecord): Promise<LeaderboardView> {
-  const [masked, source] = await Promise.all([shouldMask(), sourceStatus()]);
-  const name = (username: string) => (masked ? maskUsername(username) : username);
+  const [masked, source, preferences] = await Promise.all([shouldMask(), sourceStatus(), approvedNamePreferences()]);
+  // A player with an approved profile picks masked or full name for themselves;
+  // everyone else follows the site-wide setting.
+  const name = (username: string) =>
+    (preferences.get(normalizeUsername(username)) ?? masked) ? maskUsername(username) : username;
   const prizes = computePlacePrizes(period.prizePoolSol, parseSplit(period.payoutSplit));
 
   let ranked: SnapshotRow[];

@@ -110,3 +110,40 @@ model LoginAttempt {
   @@index([ip, createdAt])
   @@index([createdAt])
 }
+
+/// A community member's profile, owned by the Solana wallet they signed in with.
+/// That wallet is also where prizes are paid.
+model Player {
+  id              String   @id @default(cuid())
+  /// Base58 Solana address; verified by a signed sign-in message.
+  wallet          String   @unique
+  displayName     String?
+  /// The SolPump username they claim, as typed.
+  solpumpUsername String?
+  /// Lowercased claim. Unique so two players can't claim the same name.
+  solpumpKey      String?  @unique
+  /// "none" | "pending" | "approved" | "rejected". An admin approves claims.
+  solpumpStatus   String   @default("none")
+  discordUsername String?
+  kickUsername    String?
+  xUsername       String?
+  /// Mask this player's name on public leaderboards (only once the claim is approved).
+  hideName        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([solpumpStatus])
+}
+
+/// One-time wallet sign-in challenges. The exact message is stored so the
+/// signature is checked against what the server issued, not what the client sends back.
+model WalletNonce {
+  nonce     String   @id
+  wallet    String
+  message   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([wallet])
+  @@index([expiresAt])
+}

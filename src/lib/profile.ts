@@ -1,0 +1,120 @@
+import "server-only";
+import { Prisma } from "@prisma/client";
+import { db } from "./db";
+import { normalizeUsername } from "./ranking";
+import { computeStandings } from "./standings";
+import { serializable } from "./tx";
+import type { ProfileInput } from "./profile-schema";
+
+export { profileSchema, type ProfileInput } from "./profile-schema";
+
+export class ProfileError extends Error {}
+
+export type ClaimStatus = "none" | "pending" | "approved" | "rejected";
+
+/**
+ * Saves a player's profile. Changing the SolPump username sends the claim
+ * back to "pending" for an admin to approve; two players can't hold a claim
+ * on the same name at once.
+ */
+export async function saveProfile(wallet: string, input: ProfileInput): Promise<{ claimChanged: boolean; status: ClaimStatus }> {
+  try {
+    return await serializable(async (tx) => {
+      const player = await tx.player.findUnique({ where: { wallet } });
+      if (!player) throw new ProfileError("Your session expired. Please sign in again.");
+
+      const newKey = input.solpumpUsername ? normalizeUsername(input.solpumpUsername) : null;
+      const claimChanged = newKey !== player.solpumpKey;
+      let status = player.solpumpStatus as ClaimStatus;
+      if (claimChanged) {
+        if (newKey) {
+          const holder = await tx.player.findUnique({ where: { solpumpKey: newKey } });
+          if (holder && holder.id !== player.id) {
+            throw new ProfileError("That SolPump username is already claimed. If it's yours, message us on Discord.");
+          }
+          status = "pending";
+        } else {
+          status = "none";
+        }
+      }
+
+      await tx.player.update({
+        where: { wallet },
+        data: {
+          displayName: input.displayName ?? null,
+          discordUsername: input.discordUsername ?? null,
+          kickUsername: input.kickUsername ?? null,
+          xUsername: input.xUsername ?? null,
+          hideName: input.hideName,
+          ...(claimChanged
+            ? { solpumpUsername: input.solpumpUsername ?? null, solpumpKey: newKey, solpumpStatus: status }
+            : // Same name, maybe different capitalisation: keep the status.
+              { solpumpUsername: input.solpumpUsername ?? null }),
+        },
+      });
+      return { claimChanged, status };
+    });
+  } catch (error) {
+    // Two players claiming the same name at the same moment: the unique index decides.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new ProfileError("That SolPump username is already claimed. If it's yours, message us on Discord.");
+    }
+    throw error;
+  }
+}
+
+/** Approved claims: lowercased SolPump username -> whether that player hides their name. */
+export async function approvedNamePreferences(): Promise<Map<string, boolean>> {
+  const players = await db.player.findMany({
+    where: { solpumpStatus: "approved", solpumpKey: { not: null } },
+    select: { solpumpKey: true, hideName: true },
+  });
+  return new Map(players.map((p) => [p.solpumpKey!, p.hideName]));
+}
+
+export type PlayerStats = {
+  rank: number | null;
+  wageredSol: number | null;
+  prizeSol: number | null;
+  wonSol: number;
+  pendingSol: number;
+};
+
+/** Leaderboard numbers for an approved SolPump username. */
+export async function playerStats(solpumpKey: string): Promise<PlayerStats> {
+  const now = new Date();
+  const live = await db.period.findFirst({
+    where: { startsAt: { lte: now }, endsAt: { gt: now }, finalizedAt: null },
+    orderBy: { startsAt: "desc" },
+  });
+  const row = live ? (await computeStandings(live)).find((r) => normalizeUsername(r.username) === solpumpKey) : undefined;
+
+  // Payout rows store the name as imported; compare case-insensitively.
+  const payouts = (await db.payout.findMany({ select: { username: true, amountSol: true, paid: true } })).filter(
+    (p) => normalizeUsername(p.username) === solpumpKey,
+  );
+  return {
+    rank: row?.rank ?? null,
+    wageredSol: row?.wageredSol ?? null,
+    prizeSol: row && row.prizeSol > 0 ? row.prizeSol : null,
+    wonSol: payouts.filter((p) => p.paid).reduce((sum, p) => sum + p.amountSol, 0),
+    pendingSol: payouts.filter((p) => !p.paid).reduce((sum, p) => sum + p.amountSol, 0),
+  };
+}
+
+/** Admin: approve or reject a pending SolPump username claim. */
+export async function reviewClaim(playerId: string, decision: "approve" | "reject" | "reset") {
+  return serializable(async (tx) => {
+    const player = await tx.player.findUnique({ where: { id: playerId } });
+    if (!player) throw new ProfileError("Player not found.");
+    if (decision === "approve") {
+      if (!player.solpumpKey) throw new ProfileError("This player hasn't claimed a SolPump username.");
+      return tx.player.update({ where: { id: playerId }, data: { solpumpStatus: "approved" } });
+    }
+    if (decision === "reject") {
+      // Free the name so its real owner can claim it.
+      return tx.player.update({ where: { id: playerId }, data: { solpumpStatus: "rejected", solpumpKey: null } });
+    }
+    return tx.player.update({ where: { id: playerId }, data: { solpumpStatus: "pending" } });
+  });
+}

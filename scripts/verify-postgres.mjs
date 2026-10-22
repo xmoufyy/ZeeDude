@@ -112,6 +112,28 @@ async function main() {
 
     step("generate Postgres client", ["scripts/prisma.mjs", "generate"], env);
     step("migrate deploy", ["scripts/db-deploy.mjs"], env);
+    if (pg) {
+      // Drift check: replaying every committed migration on a scratch database
+      // must produce exactly the schema (--exit-code fails on any difference).
+      await pg.createDatabase("shadow");
+      const shadowUrl = databaseUrl.replace(/\/zeedude$/, "/shadow");
+      step(
+        "migrations match the schema (drift check)",
+        [
+          require.resolve("prisma/build/index.js"),
+          "migrate",
+          "diff",
+          "--from-migrations",
+          "prisma/postgres/migrations",
+          "--to-schema-datamodel",
+          "prisma/postgres/schema.prisma",
+          "--shadow-database-url",
+          shadowUrl,
+          "--exit-code",
+        ],
+        env,
+      );
+    }
     step("concurrency checks (Postgres)", ["--conditions=react-server", "--import", "tsx", "scripts/verify-concurrency.ts"], env);
     step("seed demo data", ["--import", "tsx", "prisma/seed.ts", "--force-wipe"], env);
     step("production build", [NEXT_CLI, "build"], env);

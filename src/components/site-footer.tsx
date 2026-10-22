@@ -30,7 +30,9 @@ export function SiteFooter() {
           <nav aria-label="Footer" className="flex flex-wrap gap-x-4 gap-y-2">
             <Link href="/" className="text-muted hover:text-text">Leaderboard</Link>
             <Link href="/history" className="text-muted hover:text-text">Past Winners</Link>
+            <Link href="/crew" className="text-muted hover:text-text">Dude Crew</Link>
             <Link href="/rules" className="text-muted hover:text-text">Rules &amp; FAQ</Link>
+            <Link href="/profile" className="text-muted hover:text-text">My Profile</Link>
           </nav>
           {site.socials.length > 0 && (
             <ul className="flex gap-2" aria-label="Social links">

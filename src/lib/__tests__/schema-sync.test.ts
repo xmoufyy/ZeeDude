@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import {
@@ -28,15 +28,31 @@ describe("Postgres schema", () => {
   });
 
   it(
-    "has a committed migration matching the schema",
+    "has committed migrations that create everything in the schema",
     () => {
+      // Statement-level check without a database: every table and index a
+      // from-scratch migration would create appears in some committed migration.
+      // verify:postgres runs Prisma's full drift check against a real database.
       const cli = createRequire(import.meta.url).resolve("prisma/build/index.js");
       const sql = execFileSync(
         process.execPath,
         [cli, "migrate", "diff", "--from-empty", "--to-schema-datamodel", POSTGRES_SCHEMA, "--script"],
         { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
       );
-      expect(read("prisma/postgres/migrations/0001_init/migration.sql").trim()).toBe(sql.replace(/\r\n/g, "\n").trim());
+      const statements = (text: string) =>
+        text
+          .replace(/\r\n/g, "\n")
+          .split(";")
+          .map((s) => s.replace(/^\s*--.*$/gm, "").trim())
+          .filter((s) => s && !s.startsWith("CREATE SCHEMA"));
+      const dir = "prisma/postgres/migrations";
+      const committed = new Set(
+        readdirSync(dir, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .flatMap((d) => statements(read(`${dir}/${d.name}/migration.sql`))),
+      );
+      const missing = statements(sql).filter((s) => !committed.has(s));
+      expect(missing).toEqual([]);
     },
     60_000,
   );

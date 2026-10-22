@@ -47,6 +47,11 @@ async function PeriodDetail({ params }: Pick<PageProps<"/admin/periods/[id]">, "
   const excludedByKey = new Map(excluded.map((e) => [e.username, e.reason]));
   const excludedEntries = period.entries.filter((e) => excludedByKey.has(normalizeUsername(e.username)));
   const anyPaid = period.payouts.some((p) => p.paid);
+  // Verified payout wallets from approved player profiles.
+  const approvedPlayers = finalized
+    ? await db.player.findMany({ where: { solpumpStatus: "approved" }, select: { solpumpKey: true, wallet: true } })
+    : [];
+  const walletByKey = new Map(approvedPlayers.map((pl) => [pl.solpumpKey!, pl.wallet]));
 
   const statusLabel = finalized
     ? "Ended"
@@ -113,7 +118,16 @@ async function PeriodDetail({ params }: Pick<PageProps<"/admin/periods/[id]">, "
               {period.payouts.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                   <span className="w-10 font-display text-muted">#{p.rank}</span>
-                  <span className="min-w-32 flex-1 font-semibold">{p.username}</span>
+                  <span className="min-w-32 flex-1 font-semibold">
+                    {p.username}
+                    {walletByKey.get(normalizeUsername(p.username)) ? (
+                      <span className="block font-mono text-xs font-normal text-emerald-300" title="Verified payout wallet">
+                        ✓ {walletByKey.get(normalizeUsername(p.username))}
+                      </span>
+                    ) : (
+                      <span className="block text-xs font-normal text-muted">No verified profile wallet</span>
+                    )}
+                  </span>
                   <span className="w-28 text-gold tabular-nums">{formatSol(p.amountSol)} SOL</span>
                   {p.paid ? (
                     <div className="flex flex-1 flex-wrap items-center gap-3 text-sm">

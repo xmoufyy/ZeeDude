@@ -3,7 +3,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 // Stateless signed session token: "<base64url payload>.<base64url HMAC>".
 // Kept free of Next.js imports so it can be unit tested.
 
-export type SessionPayload = { iat: number; exp: number };
+/** `sub` identifies who the session is for (player sessions carry the wallet). */
+export type SessionPayload = { iat: number; exp: number; sub?: string };
 
 const b64url = (buf: Buffer | string) => Buffer.from(buf).toString("base64url");
 
@@ -11,8 +12,8 @@ function sign(body: string, key: string): string {
   return createHmac("sha256", key).update(body).digest("base64url");
 }
 
-export function createSessionToken(key: string, now: number, ttlMs: number): string {
-  const body = b64url(JSON.stringify({ iat: now, exp: now + ttlMs } satisfies SessionPayload));
+export function createSessionToken(key: string, now: number, ttlMs: number, sub?: string): string {
+  const body = b64url(JSON.stringify({ iat: now, exp: now + ttlMs, ...(sub ? { sub } : {}) } satisfies SessionPayload));
   return `${body}.${sign(body, key)}`;
 }
 

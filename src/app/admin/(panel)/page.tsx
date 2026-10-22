@@ -44,6 +44,7 @@ async function Dashboard() {
     db.excludedUser.count(),
     getProviderStatus(),
   ]);
+  const pendingClaims = await db.player.count({ where: { solpumpStatus: "pending" } });
   // Periods past their end date that still need to be ended and paid.
   const needsEnding = await db.period.findMany({ where: { endsAt: { lte: now }, finalizedAt: null }, orderBy: { endsAt: "asc" } });
   const masked = masking?.value !== "false";
@@ -51,6 +52,18 @@ async function Dashboard() {
   return (
     <div className="space-y-8">
       <h1 className="font-display text-3xl">Dashboard</h1>
+
+      {pendingClaims > 0 && (
+        <div className="rounded-xl border border-cyan/40 bg-cyan/10 p-4 text-sm">
+          <p>
+            <strong className="text-cyan">{pendingClaims} player profile{pendingClaims === 1 ? "" : "s"}</strong> waiting
+            for you to verify their SolPump username.{" "}
+            <Link href="/admin/players" className="font-semibold underline-offset-2 hover:underline">
+              Review
+            </Link>
+          </p>
+        </div>
+      )}
 
       {needsEnding.length > 0 && (
         <div className="rounded-xl border border-gold/40 bg-gold/10 p-4 text-sm">

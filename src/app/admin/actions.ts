@@ -23,6 +23,7 @@ import { LEADERBOARD_TAG } from "@/lib/leaderboard";
 import { isValidSplit } from "@/lib/payouts";
 import { fromZonedInputValue } from "@/lib/period";
 import { CsvImportProvider, ProviderError } from "@/lib/providers";
+import { ProfileError, reviewClaim } from "@/lib/profile";
 import { normalizeUsername } from "@/lib/ranking";
 import { runRefresh } from "@/lib/refresh";
 import { BusyError } from "@/lib/tx";
@@ -43,7 +44,9 @@ async function guarded(run: () => Promise<ActionResult>): Promise<ActionResult> 
   try {
     return await run();
   } catch (error) {
-    if (error instanceof AdminError || error instanceof BusyError) return { ok: false, message: error.message };
+    if (error instanceof AdminError || error instanceof BusyError || error instanceof ProfileError) {
+      return { ok: false, message: error.message };
+    }
     if (error instanceof z.ZodError) {
       return { ok: false, message: "Please fix these values:", details: error.issues.map((i) => i.message) };
     }
@@ -297,5 +300,16 @@ export async function refreshAction(_prev: ActionResult): Promise<ActionResult> 
     return report.ok
       ? { ok: true, message: "Leaderboard refreshed. The public site now shows the latest data.", details }
       : { ok: false, message: "Refresh ran, but the data source failed. The site keeps showing the last saved data.", details };
+  });
+}
+
+// ---------------------------------------------------------------- player profiles
+
+export async function reviewClaimAction(playerId: string, decision: "approve" | "reject" | "reset", _prev: ActionResult): Promise<ActionResult> {
+  return guarded(async () => {
+    const player = await reviewClaim(id.parse(playerId), z.enum(["approve", "reject", "reset"]).parse(decision));
+    changed();
+    const label = { approve: "verified", reject: "rejected", reset: "moved back to pending" }[decision];
+    return { ok: true, message: `${player.solpumpUsername ?? "Claim"} ${label}.` };
   });
 }

@@ -44,6 +44,7 @@ Go to `/admin` and log in with the password you set.
 | Dashboard | See the live race and data source health, refresh now, toggle username masking, see unpaid prizes |
 | Periods | Create races (dates in Eastern Time, prize pool, payout split). Overlapping dates are refused |
 | Period detail | Import CSV/JSON, add/edit/remove players, preview standings with real names, end the race to lock winners, mark prizes paid with a tx note, reopen, delete |
+| Players | Approve or reject the SolPump usernames players claim on My Profile; see their verified wallets and socials |
 | Excluded users | Ban cheaters, staff and alts from every leaderboard |
 
 ### Importing wager data
@@ -73,6 +74,22 @@ Ending a race locks the standings into a final snapshot and creates a payout row
 - Admin writes that check state first (overlaps, finalize, reopen, payments, entry edits) run in serializable transactions with retry, so double-clicks or a cron run at the same moment can't corrupt data. `npm run verify:concurrency` / `verify:postgres` prove this.
 - Security headers on every route: `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, and HSTS in production. A full script CSP isn't set: it would need per-request nonces, which turns off Partial Prerendering.
 - All inputs are validated with zod.
+
+## Player profiles (My Profile)
+
+Players open **My Profile** and sign in with a Solana wallet (Phantom, Solflare or Backpack). They sign a one-time message; it's not a transaction and costs nothing. That proves they own the wallet, and it becomes their verified payout wallet. Then they add:
+
+- **SolPump username** (required). It stays **pending** until you approve it on **Admin → Players**. That page shows whether the name appears in your imported wager data, plus their Discord/Kick/X, so you can check before approving. Rejecting frees the name for its real owner. Only one profile can claim a given name.
+- **Display name, Discord, Kick, X** (optional, validated).
+- **Hide my name on the leaderboard**: once approved, the player chooses masked (`Ze****an`) or full name, overriding the site-wide setting for them alone. Unapproved claims never change how a name is shown.
+
+Once approved, their profile shows their rank and wager this week and their prizes, and each payout in the admin panel shows their verified wallet.
+
+How sign-in works: the server issues a message with a single-use nonce (5-minute expiry) and stores it. The wallet signs it, and the server checks the ed25519 signature against that stored message, then sets a 7-day httpOnly session cookie. Player sessions are signed with a different key from admin sessions.
+
+## Dude Crew (Discord page)
+
+`/crew` encourages people to join the Discord: the perks, three steps to get started, and buttons for Discord, X and Kick. Set `NEXT_PUBLIC_DISCORD_URL` to your invite link. Until then the button says "Discord invite coming soon".
 
 ## Data sources
 
@@ -150,7 +167,8 @@ docker compose --env-file .env.docker up -d --build --no-deps app cron
 | `CRON_SECRET` | yes | 16+ characters; bearer token for `/api/cron/refresh` |
 | `NEXT_PUBLIC_SITE_URL` | yes (prod) | Public URL, used for metadata, sitemap and share images |
 | `NEXT_PUBLIC_REFERRAL_CODE` / `_URL` | no | Default `ZEEDUDE` / `https://solpump.io/a/ZEEDUDE` |
-| `NEXT_PUBLIC_DISCORD_URL` / `_X_URL` / `_KICK_URL` | no | Footer links; blank hides them |
+| `NEXT_PUBLIC_DISCORD_URL` | recommended | Discord invite link, used by the Dude Crew page and footer |
+| `NEXT_PUBLIC_X_URL` / `_KICK_URL` | no | Social links; blank hides them |
 | `DATA_PROVIDER` | no | `manual` (default) or `api` |
 | `SOLPUMP_API_URL` / `SOLPUMP_API_KEY` | with `api` | Official partner API credentials |
 | `AUTO_CREATE_PERIODS` | no | `false` stops the cron job creating each week's period |
@@ -178,7 +196,8 @@ Restore with `pg_restore --clean --dbname "$DIRECT_URL" zeedude-YYYY-MM-DD.dump`
 - [ ] `TRUST_PROXY_HEADERS=true` only if a proxy you control sets `X-Forwarded-For`
 - [ ] Backups scheduled
 - [ ] Rules page reviewed: payout method, timing and disqualification rules are still drafts
-- [ ] Social links set, or left blank to hide them
+- [ ] `NEXT_PUBLIC_DISCORD_URL` set (Dude Crew page); other social links set or left blank
+- [ ] Check **Admin → Players** regularly for pending SolPump username claims
 
 ## How it works
 
@@ -194,7 +213,7 @@ Restore with `pg_restore --clean --dbname "$DIRECT_URL" zeedude-YYYY-MM-DD.dump`
 ```
 prisma/            SQLite schema, seed; postgres/ = generated schema + migrations
 scripts/           Prisma wrapper, start/verify/lighthouse/brand scripts
-src/app/           pages: / (leaderboard), /history, /rules, /admin, /api/cron
+src/app/           pages: / (leaderboard), /history, /crew, /rules, /profile, /admin, /api/cron
 src/components/    UI pieces (podium, table, countdown, ...)
 src/lib/           ranking, payouts, periods, auth, providers, data access
 docker/            container entrypoint

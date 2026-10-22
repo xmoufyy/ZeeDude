@@ -164,3 +164,24 @@ Proofs re-run: tsc and eslint clean; `npm test` 88/88 (10 files); `verify:concur
 | R3 | medium | `readEnvValue` counts an inline comment as part of the secret, so `SESSION_SECRET="" # …` survives | **Fixed:** uses `util.parseEnv`; tests for empty and short secrets followed by comments |
 
 These three fixes are **not yet independently inspected**: the user authorized one more inspection, and it's used. Proofs: `npm test` 93/93, tsc and eslint clean.
+
+## New feature after the loop: My Profile + Dude Crew (user request, not plan-reviewed)
+
+User request (mid-loop): add a "My Profile" tab with wallet/socials and a hide-my-name toggle, and a fun-named tab encouraging people to join the Discord. Decisions (user, via questions): Solana wallet sign-in; admin approves SolPump username claims; toggle = masked vs full name per player; tab name "The Dude Crew".
+
+- Built by Claude. **No independent Codex inspection yet**; this also covers inspection 4's three fixes (`8d9ed5f`).
+- Proof:
+  - `npm test` 104/104 (new: solana-auth with real ed25519 keys + base58 vectors, profile schema, session subject)
+  - tsc and eslint clean
+  - `verify:concurrency` 4/4
+  - `verify:postgres` 14/14 twice. It now includes a Prisma drift check (`--from-migrations` vs schema): "No difference detected" for migrations 0001 and 0002. One run logged a non-reproducing Next "unexpected cache miss" warning on `/history` while the page still served 200.
+- Browser end-to-end with an injected WebCrypto Ed25519 "Phantom":
+  - sign-in signed the server-stored nonce message; the session cookie is httpOnly
+  - profile saved: claim pending, handles normalised
+  - toggle survives saves in both directions (fixed a React form-reset desync)
+  - unapproved claim → still masked
+  - approved + show name → full "SolPump" name public
+  - re-hide → masked immediately
+  - profile stats showed rank, wager and paid prizes
+- Admin Players page rendered pending/approve and approved/unverify states. Mobile 375px: no overflow; the Menu button opens all 5 tabs.
+- Not verified: a real wallet extension (no Phantom in this browser) and the admin approve button clicked through the UI (approval was done via `reviewClaim` directly).
