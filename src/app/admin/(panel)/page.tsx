@@ -2,12 +2,15 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { refreshAction, setMaskingAction } from "../actions";
 import { ActionForm } from "@/components/admin/action-form";
+import { CopyButton } from "@/components/admin/copy-button";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatPeriodDate } from "@/lib/period";
 import { getConfiguredProvider } from "@/lib/providers";
+import { normalizeUsername } from "@/lib/ranking";
 import { getProviderStatus } from "@/lib/refresh";
 import { formatSol } from "@/lib/sol";
+import { shortWallet } from "@/lib/solana-auth";
 
 const SOURCE_LABELS: Record<string, string> = {
   manual: "File import & manual entry",
@@ -45,6 +48,12 @@ async function Dashboard() {
     getProviderStatus(),
   ]);
   const pendingClaims = await db.player.count({ where: { solpumpStatus: "pending" } });
+  // Verified payout wallets from approved player profiles, for the copy buttons.
+  const approvedPlayers = await db.player.findMany({
+    where: { solpumpStatus: "approved" },
+    select: { solpumpKey: true, wallet: true },
+  });
+  const walletByKey = new Map(approvedPlayers.map((pl) => [pl.solpumpKey!, pl.wallet]));
   // Periods past their end date that still need to be ended and paid.
   const needsEnding = await db.period.findMany({ where: { endsAt: { lte: now }, finalizedAt: null }, orderBy: { endsAt: "asc" } });
   const masked = masking?.value !== "false";
@@ -148,15 +157,28 @@ async function Dashboard() {
           {unpaid.length === 0 ? (
             <p className="text-sm text-muted">All locked-in prizes are paid.</p>
           ) : (
-            <ul className="space-y-1 text-sm">
-              {unpaid.slice(0, 8).map((p) => (
-                <li key={p.id} className="flex justify-between gap-3">
-                  <span>
-                    #{p.rank} {p.username} <span className="text-muted">· {p.period.name}</span>
-                  </span>
-                  <span className="text-gold">{formatSol(p.amountSol)} SOL</span>
-                </li>
-              ))}
+            <ul className="space-y-2 text-sm">
+              {unpaid.slice(0, 8).map((p) => {
+                const wallet = walletByKey.get(normalizeUsername(p.username));
+                return (
+                  <li key={p.id} className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      #{p.rank} {p.username} <span className="text-muted">· {p.period.name}</span>
+                      {wallet ? (
+                        <span className="mt-0.5 flex items-center gap-2 text-xs">
+                          <span className="font-mono text-emerald-300" title={wallet}>
+                            {shortWallet(wallet)}
+                          </span>
+                          <CopyButton value={wallet} label="Copy wallet" description={`${p.username}'s wallet address`} />
+                        </span>
+                      ) : (
+                        <span className="mt-0.5 block text-xs text-muted">No verified wallet yet</span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-gold">{formatSol(p.amountSol)} SOL</span>
+                  </li>
+                );
+              })}
               {unpaid.length > 8 && <li className="text-muted">...and {unpaid.length - 8} more</li>}
             </ul>
           )}
