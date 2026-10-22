@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "tsx prisma/ensure-dev-db.ts",
+    "predev": "node scripts/prisma.mjs generate && tsx prisma/ensure-dev-db.ts",
     "dev": "next dev",
     "build": "node scripts/prisma.mjs generate --env-mode=production && next build",
     "start": "node scripts/start-standalone.mjs",

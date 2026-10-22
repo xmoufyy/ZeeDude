@@ -15,7 +15,8 @@ FROM base AS deps
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-COPY scripts/prisma.mjs scripts/prisma-schema.mjs ./scripts/
+# Everything postinstall (scripts/prisma.mjs) imports.
+COPY scripts/prisma.mjs scripts/prisma-schema.mjs scripts/project-env.mjs ./scripts/
 RUN npm ci --no-audit --no-fund
 
 # ---- build ----

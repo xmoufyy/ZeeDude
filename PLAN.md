@@ -31,6 +31,7 @@ Make the site production-ready on **Vercel + hosted Postgres** and on **Docker +
 6. **Destructive scripts are guarded.**
    - `db:seed` wipes data, so it refuses to run when the URL is Postgres or `NODE_ENV=production`, unless `--force-wipe` is given.
    - `predev` (`ensure-dev-db.ts`) only runs `db push` and seeding for SQLite URLs; for Postgres it prints a hint and does nothing.
+   - *(Revised after inspection 3, R2.)* `predev` first runs `node scripts/prisma.mjs generate`, so the client always matches the development schema, e.g. after a Postgres production build. Generation is skipped when the client already matches. The Docker `deps` stage copies every local module the `postinstall` wrapper imports (`prisma.mjs`, `prisma-schema.mjs`, `project-env.mjs`) (R1).
 7. **Real Postgres proof without Docker.** `npm run verify:postgres` starts a throwaway Postgres (devDependency `embedded-postgres`, pinned) in a temp dir on a random port, then:
    - runs the wrapper's generate + `migrate deploy` + seed (with `--force-wipe`) against it;
    - runs the Next.js production build, assembles the standalone layout (criterion 8), and starts `node .next/standalone/server.js` on a free port;

@@ -144,3 +144,10 @@ Proofs re-run: tsc and eslint clean; `npm test` 88/88 (10 files); `verify:concur
 | R2 | medium | `predev` never regenerates the client: after `npm run build` with Postgres in `.env.production`, `npm run dev` on SQLite uses the Postgres client and fails | **Valid** (needs a Postgres `.env.production` locally). Fix: `predev` = `node scripts/prisma.mjs generate && tsx prisma/ensure-dev-db.ts` (generate is skipped when the client already matches) |
 
 **Status:** not approved. 2 findings open (1 high). Waiting on the user's decision; no unreviewed edits made.
+
+## Fix round 3 (user-authorized: "Fix the Dockerfile copy and the predev generate step, then run one more fresh Codex inspection.")
+
+- R1 (high): the Dockerfile `deps` stage now also copies `scripts/project-env.mjs`. Proof (no Docker here): an isolated folder holding only the deps-stage files (package files, `prisma/`, the 3 scripts, node_modules junction) runs `node scripts/prisma.mjs which-schema` → `prisma/postgres/schema.prisma`, exit 0.
+- R2: `predev` = `node scripts/prisma.mjs generate && tsx prisma/ensure-dev-db.ts`. Proof: deliberately generated a Postgres client, then `npm run predev` regenerated SQLite (`generatedClientProvider` postgresql → sqlite) and pushed/seeded OK; a second run skipped generation.
+- eslint clean; `npm test` passes.
+- Plan updated (criterion 6). New plan SHA256: `3d869a2ca9d8e279a47625a748d2d5ae51a1142f53115e18c64d893cdd63e3de`.
