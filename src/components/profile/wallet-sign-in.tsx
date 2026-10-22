@@ -44,6 +44,9 @@ function toBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
+/** A sign-in failure whose message is safe and useful to show the player. */
+class SignInError extends Error {}
+
 export function WalletSignIn() {
   const router = useRouter();
   const [wallets, setWallets] = useState<WalletOption[] | null>(null);
@@ -67,19 +70,22 @@ export function WalletSignIn() {
     try {
       const connected = await provider.connect();
       const wallet = (connected && connected.publicKey ? connected.publicKey : provider.publicKey)?.toString();
-      if (!wallet) throw new Error("The wallet didn't share an address.");
+      if (!wallet) throw new SignInError("The wallet didn't share an address.");
 
       const step = await startSignInAction(wallet);
-      if (!step.ok) throw new Error(step.error);
+      if (!step.ok) throw new SignInError(step.error);
 
       const signed = await provider.signMessage(new TextEncoder().encode(step.message), "utf8");
       const signature = signed instanceof Uint8Array ? signed : signed.signature;
       const result = await finishSignInAction(wallet, step.nonce, toBase64(signature));
-      if (!result.ok) throw new Error(result.error);
+      if (!result.ok) throw new SignInError(result.error);
       router.refresh();
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      setError(/reject|cancel|denied/i.test(message) ? "Sign-in was cancelled in your wallet." : message);
+      if (/reject|cancel|denied/i.test(message)) setError("Sign-in was cancelled in your wallet.");
+      // Our own messages are written for players; anything else (a server
+      // failure, a wallet bug) gets a generic line instead of raw internals.
+      else setError(e instanceof SignInError ? message : "Something went wrong signing in. Please try again in a minute.");
     } finally {
       setBusy(null);
     }
