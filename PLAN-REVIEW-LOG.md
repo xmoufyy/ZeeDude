@@ -206,3 +206,15 @@ Status: open. Review only (no implementation authorized by this command).
 - R3: fallback copies are sanitized with every name masked, both when saved and when served (this covers older raw copies).
 - Found while proving these: `verify:postgres` intermittently hung (once ~40 minutes; once at run 4 of the same-wallet scenario). Diagnosis: 600 standalone sign-in starts never stalled, so the cause was the harness, not the app. `spawnSync` froze the verifier's event loop, and the embedded Postgres (a child of the verifier) blocked on a full stderr log pipe after many serialization-failure log lines. Fix: async `step()`, plus per-step (20 min) and per-scenario (60 s) timeouts.
 - Proofs: `npm test` 107/107; tsc and eslint clean; `verify:concurrency` 7/7 (new: stale-claim review, same-wallet starts, cap); `verify:postgres` 17/17 on two consecutive runs with the drift check clean for 3 migrations.
+
+## Inspection 6: fresh Codex session, verdict REVISE (user-authorized extra round, now used)
+
+- Result: `scratchpad/claudex/inspect6/claudex-x27nr7qf/result.json`. Session `01a16290-ec06-7231-bedc-74e43b26d43d`, `gpt-6.1-sol`, 193s. Snapshot `737bbdc`, base `dd0077a`.
+- Confirms inspection 5's R1–R3 are fixed.
+
+| ID | Sev | Finding | Host position |
+|---|---|---|---|
+| R1 | medium | `verify-concurrency` scenario timeout doesn't stop the stalled run: later scenarios can overlap it and the final `wipe()` can still hang; the SQLite launcher has no child timeout | **Valid** (test harness only). Fix: exit immediately on a timeout (skip cleanup), and/or give the launcher a child timeout |
+| R2 | low | `reviewedKey` is capped at 64 UTF-16 units, but lowercasing can lengthen an accepted 64-character name (e.g. U+0130), so approve/reject always fail for such a claim | **Valid.** Fix: allow the normalized maximum (or validate the normalized length at save) and add a boundary test |
+
+Status: 2 open. Awaiting the user's decision.
