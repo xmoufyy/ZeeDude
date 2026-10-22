@@ -31,7 +31,8 @@ export function prepareStandalone(root = process.cwd()) {
  * the project's prisma/ folder instead. Other URLs pass through unchanged.
  */
 export function absoluteSqliteUrl(url, root = process.cwd()) {
-  const match = /^file:(\.{1,2}\/.*)$/.exec(url ?? "");
+  // Any relative path (file:dev.db, file:./dev.db, file:../x.db), keeping ?params.
+  const match = /^file:(?!\/|[A-Za-z]:)([^?]+)(\?.*)?$/.exec(url ?? "");
   if (!match) return url;
-  return `file:${path.resolve(root, "prisma", match[1]).replace(/\\/g, "/")}`;
+  return `file:${path.resolve(root, "prisma", match[1]).replace(/\\/g, "/")}${match[2] ?? ""}`;
 }

@@ -151,3 +151,16 @@ Proofs re-run: tsc and eslint clean; `npm test` 88/88 (10 files); `verify:concur
 - R2: `predev` = `node scripts/prisma.mjs generate && tsx prisma/ensure-dev-db.ts`. Proof: deliberately generated a Postgres client, then `npm run predev` regenerated SQLite (`generatedClientProvider` postgresql → sqlite) and pushed/seeded OK; a second run skipped generation.
 - eslint clean; `npm test` passes.
 - Plan updated (criterion 6). New plan SHA256: `3d869a2ca9d8e279a47625a748d2d5ae51a1142f53115e18c64d893cdd63e3de`.
+
+### Inspection 4: fresh Codex session, verdict REVISE
+
+- Result: `scratchpad/claudex/inspect4/claudex-1bz8he1a/result.json`. Session `01a16189-9c9a-76f0-9e98-553845c6320a`, `gpt-6.1-sol`, 147s. Snapshot `dd0077a`.
+- Confirms that inspection 3's R1 (Docker deps copy) and R2 (predev generate) are fixed.
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| R1 | medium | Compose doesn't forward `AUTO_CREATE_PERIODS` / `DATA_STALE_AFTER_MINUTES` (or the API settings) to `app` | **Fixed:** forwarded with documented defaults; added to `.env.docker.example` |
+| R2 | medium | `absoluteSqliteUrl` only handles `./` and `../`, so `file:dev.db` breaks under `npm start` | **Fixed:** every relative path is pinned to `prisma/`, `?params` kept; `standalone.test.ts` added |
+| R3 | medium | `readEnvValue` counts an inline comment as part of the secret, so `SESSION_SECRET="" # …` survives | **Fixed:** uses `util.parseEnv`; tests for empty and short secrets followed by comments |
+
+These three fixes are **not yet independently inspected**: the user authorized one more inspection, and it's used. Proofs: `npm test` 93/93, tsc and eslint clean.

@@ -65,3 +65,15 @@ describe("pickClientIp", () => {
     expect(pickClientIp(headers({}), { VERCEL: "1" })).toBe("direct");
   });
 });
+
+describe("applyAdminCredentials with inline comments", () => {
+  it("treats SESSION_SECRET=\"\" # comment as empty and replaces it", () => {
+    const out = applyAdminCredentials('SESSION_SECRET="" # generate a secure session secret here\n', "h", SECRET);
+    expect(readEnvValue(out, "SESSION_SECRET")).toBe(SECRET);
+  });
+
+  it("treats a short quoted secret followed by a comment as too short", () => {
+    const out = applyAdminCredentials('SESSION_SECRET="short" # replace me with something long\n', "h", SECRET);
+    expect(readEnvValue(out, "SESSION_SECRET")).toBe(SECRET);
+  });
+});

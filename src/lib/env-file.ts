@@ -1,16 +1,16 @@
 // Small helpers for editing a .env file's text without touching other lines.
 
+import { parseEnv } from "node:util";
+
 const MIN_SECRET_LENGTH = 32;
 
 function lineFor(key: string) {
   return new RegExp(`^${key}=(.*)$`, "m");
 }
 
-/** The value of `key` in .env text (quotes stripped), or undefined if absent. */
+/** The effective value of `key` in .env text (dotenv rules: quotes, inline comments), or undefined. */
 export function readEnvValue(env: string, key: string): string | undefined {
-  const match = lineFor(key).exec(env);
-  if (!match) return undefined;
-  return match[1].trim().replace(/^(["'])(.*)\1$/, "$2");
+  return parseEnv(env)[key];
 }
 
 /** Sets `key` to `value`, replacing an existing line or appending a new one. */
