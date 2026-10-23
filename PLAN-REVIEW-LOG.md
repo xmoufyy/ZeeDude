@@ -254,3 +254,12 @@ Status: 3 open. Review only (no implementation authorized by this command).
 | R5 | medium | Only one pre-start copy is loaded: if the newest copy is 30 min before the start (so it becomes `latest`), the older baseline isn't loaded and the period is left untouched | **Valid.** Fix: also load the newest copy strictly older than that one; test it |
 
 Status: 5 open. The authorized inspection budget is used.
+
+### Fix round for inspection 8 (user-authorized: fix R1–R5, then one more fresh inspection)
+
+- R1: labels in `NOISE`, `CARD_MARKER` and `LABEL` match only as whole words (Unicode letter/number boundaries), so `RegeneratedKing` stays intact.
+- R2: in a simple list, a first line is a header only if it has a delimiter (`,` `;` tab) and no digits; anything else unreadable is an error.
+- R3: `AMOUNT_AFTER` requires a complete number token (no letters, digits or `.`/`,`+digit right after), so `1e10` and `5.5.5` are errors.
+- R4: `pickSnapshots` collapses copies sharing a `takenAt` to the last saved one before choosing latest and baseline.
+- R5: `computePeriod` loads the newest copy before the start *and* the newest copy strictly older than that one.
+- Proofs: `npm test` 124/124 (new: label-word names, malformed amounts, undelimited first line, baseline-time correction). tsc and eslint clean. `verify:concurrency` 8/8; the affiliate scenario now also covers a latest copy 30 min before the start with a baseline a week older (expects 4).

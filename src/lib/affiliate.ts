@@ -16,16 +16,18 @@ export type AffiliateParse = { rows: AffiliateRow[]; warnings: string[]; errors:
 
 // "Wagered" as a standalone word (not part of a username like "wageredking").
 const WAGERED = /(?<![\p{L}\p{N}_])wagered(?![\p{L}\p{N}_])/giu;
-// The amount right after a "Wagered" label (an optional ":" or SOL symbol first).
-const AMOUNT_AFTER = /^[\s:]*[◎$]?\s*(\d[\d,]*(?:\.\d+)?|\.\d+)/u;
+// The amount right after a "Wagered" label (an optional ":" or SOL symbol
+// first). It must be a whole number token: "1e10" or "5.5.5" don't match.
+const AMOUNT_AFTER = /^[\s:]*[◎$]?\s*(\d[\d,]*(?:\.\d+)?|\.\d+)(?![\p{L}\p{N}_]|[.,]\d)/u;
 // Text on a player card that is never part of a name: dates and times, the
-// other labels, and standalone numbers (but not digits inside "Mario4k").
+// other labels, and standalone numbers. Labels and numbers only count as whole
+// words, so "RegeneratedKing" and "Mario4k" stay intact.
 const NOISE =
-  /\d{1,2}\/\d{1,2}\/\d{2,4}(?:,?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M)?)?|comm?iss?ion|generated|first\s+seen|last\s+seen|(?<![\p{L}\p{N}_.])[◎$]?\d[\d,]*(?:\.\d+)?(?:\s*sol)?(?![\p{L}\p{N}_])/giu;
+  /\d{1,2}\/\d{1,2}\/\d{2,4}(?:,?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M)?)?|(?<![\p{L}\p{N}_])(?:comm?iss?ion|generated|first\s+seen|last\s+seen)(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_.])[◎$]?\d[\d,]*(?:\.\d+)?(?:\s*sol)?(?![\p{L}\p{N}_])/giu;
 // Labels that only player cards have (page-level totals above the list don't).
-const CARD_MARKER = /generated|first\s+seen|last\s+seen/i;
+const CARD_MARKER = /(?<![\p{L}\p{N}_])(?:generated|first\s+seen|last\s+seen)(?![\p{L}\p{N}_])/iu;
 const DATE = /\d{1,2}\/\d{1,2}\/\d{2,4}/;
-const LABEL = /^(wagered|comm?iss?ion|generated|first seen|last seen)\b/i;
+const LABEL = /^(wagered|comm?iss?ion|generated|first seen|last seen)(?![\p{L}\p{N}_])/iu;
 // Verified ticks and similar marks the page shows after a name.
 const TRAILING_MARKS = /[\s✓✔☑✅︎️]+$/u;
 
@@ -93,7 +95,7 @@ export function parseAffiliatePaste(raw: string): AffiliateParse {
     found = found.filter((c) => c.name);
   } else {
     // Simple list: every non-empty line must be "name, amount" (a first line
-    // without any digits is treated as a header).
+    // with a delimiter and no digits is treated as a header).
     found = [];
     const lines = text.split("\n").map((l) => l.trim());
     let seenContent = false;
@@ -101,7 +103,7 @@ export function parseAffiliatePaste(raw: string): AffiliateParse {
       if (!line) return;
       const plain = /^(.+?)(?:\s*[,;\t]\s*|\s{2,})([◎$]?\s*[\d,]*\.?\d+)\s*(sol)?$/i.exec(line);
       if (plain) found.push({ line: i + 1, name: plain[1], amount: plain[2] });
-      else if (!seenContent && !/\d/.test(line)) {
+      else if (!seenContent && !/\d/.test(line) && /[,;\t]/.test(line)) {
         // header
       } else errors.push(`Line ${i + 1}: expected "name, amount" but got "${line.slice(0, 40)}".`);
       seenContent = true;
@@ -158,7 +160,11 @@ export function pickSnapshots<T extends SnapshotRef>(
   const sorted = [...snapshots].sort(
     (a, b) => a.takenAt.getTime() - b.takenAt.getTime() || (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0),
   );
-  const usable = sorted.filter((s) => s.takenAt.getTime() <= endLimit);
+  // Copies sharing a time are re-saves of one moment: only the last saved one
+  // (a correction) counts, whether it ends up as the latest or the baseline.
+  const usable = sorted.filter(
+    (s, i) => s.takenAt.getTime() <= endLimit && sorted[i + 1]?.takenAt.getTime() !== s.takenAt.getTime(),
+  );
   const latest = usable.at(-1) ?? null;
   if (!latest || latest.takenAt.getTime() < start - BOUNDARY_GRACE_MS) return { latest: null, baseline: null, baselineOffMs: null };
 

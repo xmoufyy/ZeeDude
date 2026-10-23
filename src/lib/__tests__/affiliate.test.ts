@@ -105,7 +105,22 @@ describe("parseAffiliatePaste", () => {
 
   it("reports unreadable amounts and empty pastes", () => {
     expect(parseAffiliatePaste("Bob\nWagered\nlots").errors[0]).toMatch(/amount for Bob/);
-    expect(parseAffiliatePaste("hello there").errors[0]).toMatch(/No players found/);
+    expect(parseAffiliatePaste("hello there").errors[0]).toMatch(/Line 1: expected "name, amount"/);
+    expect(parseAffiliatePaste(" \n ").errors[0]).toMatch(/No players found/);
+  });
+
+  it("keeps label words inside names and rejects malformed amounts", () => {
+    const text = "RegeneratedKing ✓\nWagered 100\nComission Generated 1\nLastSeenFan\nWagered 2\nComission Generated 0.1";
+    expect(parseAffiliatePaste(text).rows).toEqual([
+      { username: "RegeneratedKing", lifetimeSol: 100 },
+      { username: "LastSeenFan", lifetimeSol: 2 },
+    ]);
+    expect(parseAffiliatePaste("Alice\nWagered 1e10\nComission Generated 1").errors[0]).toMatch(/amount for Alice/);
+    expect(parseAffiliatePaste("Alice\nWagered 5.5.5\nComission Generated 1").errors[0]).toMatch(/amount for Alice/);
+  });
+
+  it("only treats a delimited first line as a list header", () => {
+    expect(parseAffiliatePaste("Bob nope\nAlice, 100").errors[0]).toMatch(/Line 1: expected "name, amount"/);
   });
 });
 
@@ -136,6 +151,13 @@ describe("pickSnapshots", () => {
     expect(pickSnapshots([again, first], week)).toMatchObject({ latest: again, baseline: null });
     const start = at("2026-10-18T21:00:00Z");
     expect(pickSnapshots([first, start, again], week)).toMatchObject({ latest: again, baseline: start });
+  });
+
+  it("uses a correction saved at the baseline's time instead of the original", () => {
+    const original = { id: "original", takenAt: new Date("2026-10-18T21:00:00Z"), createdAt: new Date("2026-10-18T21:01:00Z") };
+    const correction = { id: "correction", takenAt: new Date("2026-10-18T21:00:00Z"), createdAt: new Date("2026-10-18T21:05:00Z") };
+    const later = { id: "later", takenAt: new Date("2026-10-21T12:00:00Z"), createdAt: new Date("2026-10-21T12:00:00Z") };
+    expect(pickSnapshots([original, correction, later], week)).toMatchObject({ latest: later, baseline: correction });
   });
 
   it("has no baseline with a single copy and nothing for a week with no copies yet", () => {

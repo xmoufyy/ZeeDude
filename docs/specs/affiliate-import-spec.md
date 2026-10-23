@@ -25,7 +25,9 @@ Requirements:
 
     If more than one line remains (for example avatar alt text), the last line is the name. An all-digit name alone on its own line before `Wagered` is kept.
   - **Page totals.** `Wagered` text that appears before the first real card (one followed by `Generated`/`First Seen`/`Last Seen`) is page-total text. It's skipped with a warning. Anything after the first card counts, including a last card cut off early.
-  - **Simple lists.** With no `Wagered` card labels, it falls back to a strict `name, amount` / tab / 2+ space list. **Every** non-empty line must parse, or the paste is rejected. Only a first line that has delimiters but no digits is treated as a header.
+  - **Whole words only.** Labels and numbers count only as whole words, so names containing label words (`RegeneratedKing`) stay intact (inspection 8 R1).
+  - **Amounts.** The amount after `Wagered` must be a complete number token. Something like `1e10` or `5.5.5` is an error, not truncated (inspection 8 R3).
+  - **Simple lists.** With no `Wagered` card labels, it falls back to a strict `name, amount` / tab / 2+ space list. **Every** non-empty line must parse, or the paste is rejected. Only a first line that has a delimiter (`,` `;` or tab) and no digits is treated as a header (inspection 8 R2).
   - Usernames are 1–64 characters with control characters removed. Amounts are finite, 0 to 1e9, and thousands separators are allowed.
   - The same name twice keeps the larger total, with a warning if they differ. Unreadable rows are errors, and any error blocks saving. Max 10,000 players.
 - **Storage.**
@@ -34,7 +36,8 @@ Requirements:
 - **Weekly math.**
   - For a period: `latest` = newest snapshot with `takenAt <= endsAt + 1h`. If that is before `startsAt - 1h`, the period has no data.
   - `baseline` = the snapshot with `takenAt` strictly earlier than `latest.takenAt` that is closest to `startsAt`, on either side. Copies sharing a `takenAt` are ordered by `createdAt`, so the later save is `latest`.
-  - Copies before the start are not limited by age: the newest copy before `startsAt` is always a candidate (inspection 7 R2).
+  - Copies sharing a `takenAt` are re-saves of one moment. Only the last saved one counts, as latest or as baseline, so a correction at the baseline time replaces the original (inspection 8 R4).
+  - Copies before the start are not limited by age (inspection 7 R2). The two newest distinct copy times before `startsAt` are candidates, so a latest copy taken just before the start still finds its baseline (inspection 8 R5).
   - Each player's wager = latest − baseline, computed in lamports.
   - Players absent from the baseline count in full; zero rows are dropped; negative differences count as 0 with a warning.
   - Warn when baseline players are missing from the latest copy (incomplete paste), and when the baseline is more than 1h from `startsAt`.

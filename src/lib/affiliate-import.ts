@@ -47,21 +47,26 @@ async function readings(client: DbClient, snapshotId: string): Promise<Affiliate
 
 /** Works out a period's wagers from the stored snapshots, plus `pending` if it isn't saved yet. */
 async function computePeriod(client: DbClient, period: Period, pending?: PendingSnapshot): Promise<PeriodOutcome> {
-  // Every copy from the period's start onward, plus the newest copy before it
-  // however old: that's the closest candidate on the "before" side.
+  // Every copy from the period's start onward, plus the two newest distinct
+  // copy times before it, however old. The newest is the closest "before"
+  // candidate; when it's also the latest copy (taken just before the start),
+  // the one before it is the baseline.
   const select = { id: true, takenAt: true, createdAt: true } as const;
+  const newestBefore = (time: Date) =>
+    client.affiliateSnapshot.findFirst({
+      where: { takenAt: { lt: time } },
+      orderBy: [{ takenAt: "desc" }, { createdAt: "desc" }],
+      select,
+    });
   const [inPeriod, before] = await Promise.all([
     client.affiliateSnapshot.findMany({
       where: { takenAt: { gte: period.startsAt, lte: new Date(period.endsAt.getTime() + BOUNDARY_GRACE_MS) } },
       select,
     }),
-    client.affiliateSnapshot.findFirst({
-      where: { takenAt: { lt: period.startsAt } },
-      orderBy: [{ takenAt: "desc" }, { createdAt: "desc" }],
-      select,
-    }),
+    newestBefore(period.startsAt),
   ]);
-  const refs: SnapshotRef[] = before ? [before, ...inPeriod] : inPeriod;
+  const beforeThat = before ? await newestBefore(before.takenAt) : null;
+  const refs: SnapshotRef[] = [beforeThat, before, ...inPeriod].filter((s) => s !== null);
   if (pending) refs.push(pending.ref);
   const { latest, baseline, baselineOffMs } = pickSnapshots(refs, period);
   const outcome: PeriodOutcome = {
