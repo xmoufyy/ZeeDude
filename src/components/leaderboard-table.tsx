@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { LeaderboardRow } from "@/lib/leaderboard";
 import { formatSol } from "@/lib/sol";
+import { GapNote, MoveBadge } from "./move-badge";
 import { PaidBadge } from "./paid-badge";
 
 const INITIAL_ROWS = 10;
@@ -23,7 +24,7 @@ export function LeaderboardTable({ rows, caption }: { rows: LeaderboardRow[]; ca
         <caption className="sr-only">{caption}</caption>
         <thead className="border-b border-line text-[0.7rem] tracking-widest text-muted uppercase sm:text-xs">
           <tr>
-            <th scope="col" className="w-14 py-3 pl-3 font-semibold sm:w-20 sm:pl-6">Rank</th>
+            <th scope="col" className="w-20 py-3 pl-3 font-semibold sm:w-24 sm:pl-6">Rank</th>
             <th scope="col" className="py-3 font-semibold">Player</th>
             <th scope="col" className="py-3 text-right font-semibold">Wagered</th>
             <th scope="col" className="py-3 pr-3 text-right font-semibold sm:pr-6">Prize</th>
@@ -33,11 +34,17 @@ export function LeaderboardTable({ rows, caption }: { rows: LeaderboardRow[]; ca
           {visible.map((row, i) => (
             <tr key={`${row.rank}-${row.name}-${i}`} className="transition-colors hover:bg-white/[0.03]">
               <td className="py-3 pl-3 sm:pl-6">
-                <span className="inline-grid size-8 place-items-center rounded-lg bg-white/5 font-display text-sm text-muted">
-                  {row.rank}
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-grid size-8 place-items-center rounded-lg bg-white/5 font-display text-sm text-muted">
+                    {row.rank}
+                  </span>
+                  <MoveBadge move={row.move} />
                 </span>
               </td>
-              <td className="max-w-0 truncate py-3 pr-2 font-medium sm:max-w-none">{row.name}</td>
+              <td className="max-w-0 py-3 pr-2 sm:max-w-none">
+                <span className="block truncate font-medium">{row.name}</span>
+                <GapNote gapSol={row.gapSol} gapRank={row.gapRank} className="block truncate" />
+              </td>
               <td className="py-3 text-right tabular-nums whitespace-nowrap">
                 {formatSol(row.wageredSol, { min: 2, max: 2 })}
                 <span className="ml-1 text-xs text-muted">SOL</span>

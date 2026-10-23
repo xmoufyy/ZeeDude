@@ -8,7 +8,7 @@
 // condition so `server-only` modules load:
 //   node --conditions=react-server --import tsx scripts/verify-concurrency.ts
 
-import { finalizePeriod, reopenPeriod, setPayoutPaid } from "../src/lib/admin-ops";
+import { finalizePeriod, reopenPeriod, setPayoutPaid, snapshotPeriod } from "../src/lib/admin-ops";
 import { deleteAffiliateSnapshot, previewAffiliateSnapshot, saveAffiliateSnapshot } from "../src/lib/affiliate-import";
 import { db } from "../src/lib/db";
 import { MAX_FAILURES_PER_IP, reserveLoginAttempt } from "../src/lib/login-limiter";
@@ -263,6 +263,21 @@ const checks: Check[] = [
       if ((await eveBoard()).length) return `boundary copy counted last week's bets (${JSON.stringify(await eveBoard())})`;
       await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 15.5 }], new Date(sunday.startsAt.getTime() + DAY));
       if (JSON.stringify(await eveBoard()) !== "[1.5]") return `mid-week copy after the boundary: ${JSON.stringify(await eveBoard())}, expected [1.5]`;
+      return null;
+    },
+  },
+  {
+    name: "live snapshots skip unchanged standings, so climb arrows keep the previous ones",
+    async run() {
+      await wipe();
+      const period = await livePeriodWithPlayers(5);
+      await snapshotPeriod(period.id);
+      await snapshotPeriod(period.id);
+      const count = () => db.snapshot.count({ where: { periodId: period.id, isFinal: false } });
+      if ((await count()) !== 1) return `identical standings stored ${await count()} times`;
+      await db.wagerEntry.updateMany({ where: { periodId: period.id, username: "player4" }, data: { wageredSol: 500 } });
+      await snapshotPeriod(period.id);
+      if ((await count()) !== 2) return `changed standings weren't stored (${await count()} snapshots)`;
       return null;
     },
   },

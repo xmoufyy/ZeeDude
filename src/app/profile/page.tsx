@@ -87,6 +87,22 @@ async function ProfileBody() {
           tone={approved ? "text-emerald-300" : "text-muted"}
         />
       </div>
+      {stats?.rank != null && (
+        <p className="rounded-xl border border-line bg-white/[0.03] px-4 py-3 text-sm">
+          {stats.gapSol != null && stats.gapRank != null ? (
+            <>
+              <span aria-hidden="true">🎯 </span>
+              You&apos;re <strong className="text-gold">{formatSol(stats.gapSol, { min: 2, max: 2 })} SOL</strong> behind #{stats.gapRank}.
+              Wager more than that to pass them.
+            </>
+          ) : (
+            <>
+              <span aria-hidden="true">👑 </span>
+              You&apos;re leading this week&apos;s race. Hold the crown!
+            </>
+          )}
+        </p>
+      )}
       {stats && stats.pendingSol > 0 && (
         <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm">
           🎉 You have <strong className="text-gold">{formatSol(stats.pendingSol)} SOL</strong> in prizes on the way to{" "}

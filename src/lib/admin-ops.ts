@@ -60,9 +60,13 @@ export async function updatePeriod(periodId: string, input: PeriodInput) {
 export async function snapshotPeriod(periodId: string) {
   const period = await db.period.findUniqueOrThrow({ where: { id: periodId } });
   if (period.finalizedAt) return;
-  const standings = await computeStandings(period);
-  await db.snapshot.create({ data: { periodId, data: JSON.stringify(standings) } });
-  // Live snapshots are only a fallback; keep the most recent few per period.
+  const data = JSON.stringify(await computeStandings(period));
+  // Skip copies identical to the newest one, so the few we keep are distinct
+  // standings (the climb arrows compare against the previous ones).
+  const newest = await db.snapshot.findFirst({ where: { periodId, isFinal: false }, orderBy: { takenAt: "desc" }, select: { data: true } });
+  if (newest?.data === data) return;
+  await db.snapshot.create({ data: { periodId, data } });
+  // Live snapshots are only a fallback and the climb arrows' history; keep the most recent few per period.
   const stale = await db.snapshot.findMany({
     where: { periodId, isFinal: false },
     orderBy: { takenAt: "desc" },

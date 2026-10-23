@@ -225,7 +225,7 @@ Restore with `pg_restore --clean --dbname "$DIRECT_URL" zeedude-YYYY-MM-DD.dump`
 ```
 prisma/            SQLite schema, seed; postgres/ = generated schema + migrations
 scripts/           Prisma wrapper, start/verify/lighthouse/brand scripts
-src/app/           pages: / (leaderboard), /history, /crew, /rules, /profile, /admin, /api/cron
+src/app/           pages: / (leaderboard), /history, /hall-of-fame, /crew, /rules, /profile, /admin, /api/cron
 src/components/    UI pieces (podium, table, countdown, ...)
 src/lib/           ranking, payouts, periods, auth, providers, data access
 docker/            container entrypoint

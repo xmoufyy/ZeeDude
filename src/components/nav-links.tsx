@@ -7,6 +7,7 @@ import { Suspense, useState } from "react";
 const LINKS = [
   { href: "/", label: "Leaderboard" },
   { href: "/history", label: "Past Winners" },
+  { href: "/hall-of-fame", label: "Hall of Fame" },
   { href: "/crew", label: "Dude Crew" },
   { href: "/rules", label: "Rules" },
   { href: "/profile", label: "My Profile" },

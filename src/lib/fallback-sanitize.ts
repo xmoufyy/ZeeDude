@@ -12,3 +12,15 @@ export function maskBoardForFallback<T extends Board>(board: T): T {
   if (!board) return board;
   return { ...board, masked: true, rows: board.rows.map((row) => ({ ...row, name: maskUsername(row.name) })) };
 }
+
+type Hall = { rows: { name: string }[]; champions: { name: string }[]; masked: boolean };
+
+/** The Hall of Fame's fallback copy, with every name masked (same reasoning as above). */
+export function maskHallForFallback<T extends Hall>(hall: T): T {
+  return {
+    ...hall,
+    masked: true,
+    rows: hall.rows.map((row) => ({ ...row, name: maskUsername(row.name) })),
+    champions: hall.champions.map((c) => ({ ...c, name: maskUsername(c.name) })),
+  };
+}

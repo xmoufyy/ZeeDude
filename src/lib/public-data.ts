@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { unstable_rethrow } from "next/navigation";
 import { createFallbackStore } from "./fallback";
-import { maskBoardForFallback } from "./fallback-sanitize";
-import { getCurrentLeaderboard, getLeaderboardForPeriod, getPastPeriods } from "./leaderboard";
+import { maskBoardForFallback, maskHallForFallback } from "./fallback-sanitize";
+import { getCurrentLeaderboard, getHallOfFame, getLeaderboardForPeriod, getPastPeriods } from "./leaderboard";
 
 // Public pages load data through these wrappers: if the database (or the
 // cache behind it) fails, they serve the last good copy instead of an error
@@ -26,4 +26,8 @@ export function loadPastPeriods() {
 
 export function loadLeaderboardForPeriod(id: string) {
   return fallbackStore.withFallback(`period-${id}`, () => getLeaderboardForPeriod(id), maskBoardForFallback);
+}
+
+export function loadHallOfFame() {
+  return fallbackStore.withFallback("hall-of-fame", getHallOfFame, maskHallForFallback);
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
+import { gapsToNextPlace } from "./board-stats";
 import { db } from "./db";
 import { normalizeUsername } from "./ranking";
 import { computeStandings } from "./standings";
@@ -76,6 +77,9 @@ export type PlayerStats = {
   rank: number | null;
   wageredSol: number | null;
   prizeSol: number | null;
+  /** SOL needed to pass the next better rank this week (`gapRank`), if not leading. */
+  gapSol: number | null;
+  gapRank: number | null;
   wonSol: number;
   pendingSol: number;
 };
@@ -87,7 +91,9 @@ export async function playerStats(solpumpKey: string): Promise<PlayerStats> {
     where: { startsAt: { lte: now }, endsAt: { gt: now }, finalizedAt: null },
     orderBy: { startsAt: "desc" },
   });
-  const row = live ? (await computeStandings(live)).find((r) => normalizeUsername(r.username) === solpumpKey) : undefined;
+  const standings = live ? await computeStandings(live) : [];
+  const row = standings.find((r) => normalizeUsername(r.username) === solpumpKey);
+  const gap = row ? gapsToNextPlace(standings).get(solpumpKey) : undefined;
 
   // Payout rows store the name as imported; compare case-insensitively.
   const payouts = (await db.payout.findMany({ select: { username: true, amountSol: true, paid: true } })).filter(
@@ -97,6 +103,8 @@ export async function playerStats(solpumpKey: string): Promise<PlayerStats> {
     rank: row?.rank ?? null,
     wageredSol: row?.wageredSol ?? null,
     prizeSol: row && row.prizeSol > 0 ? row.prizeSol : null,
+    gapSol: gap?.sol ?? null,
+    gapRank: gap?.rank ?? null,
     wonSol: payouts.filter((p) => p.paid).reduce((sum, p) => sum + p.amountSol, 0),
     pendingSol: payouts.filter((p) => !p.paid).reduce((sum, p) => sum + p.amountSol, 0),
   };
