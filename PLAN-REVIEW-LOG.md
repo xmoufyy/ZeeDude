@@ -263,3 +263,15 @@ Status: 5 open. The authorized inspection budget is used.
 - R4: `pickSnapshots` collapses copies sharing a `takenAt` to the last saved one before choosing latest and baseline.
 - R5: `computePeriod` loads the newest copy before the start *and* the newest copy strictly older than that one.
 - Proofs: `npm test` 124/124 (new: label-word names, malformed amounts, undelimited first line, baseline-time correction). tsc and eslint clean. `verify:concurrency` 8/8; the affiliate scenario now also covers a latest copy 30 min before the start with a baseline a week older (expects 4).
+
+## Inspection 9: fresh Codex session, verdict REVISE (user-authorized extra round, now used)
+
+- Result: `scratchpad/claudex/inspect9/claudex-cg4c51w8/result.json`. Session `01a16777-be6c-7d72-a951-6dde6cd7f2df`, 60s. Snapshot `d4a9be8`, base `0a78e1c`. Postgres verification on `d4a9be8`: 18/18 passed, drift clean.
+- Inspection 8's R1–R5 are not re-raised.
+
+| ID | Sev | Finding | Host position |
+|---|---|---|---|
+| R1 | high | The CSV-header rule (first line with a tab and no digits) also matches a card line like `Alice<TAB>Wagered` with the amount on the next line, so Alice is silently dropped | **Valid.** Fix: only a recognised list header (a name column word plus a delimiter) is skipped; test a tab-separated name and label |
+| R2 | medium | `nameBefore` cuts at the last noise match, so a name with a standalone number inside (`Agent 47 Smith`) imports as `Smith` | **Valid.** Fix: cut only after the previous card's dates and labels, take the last line, then strip leading standalone numbers only; test it |
+
+Status: 2 open. The authorized inspection budget is used.
