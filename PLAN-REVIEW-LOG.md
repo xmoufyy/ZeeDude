@@ -275,3 +275,10 @@ Status: 5 open. The authorized inspection budget is used.
 | R2 | medium | `nameBefore` cuts at the last noise match, so a name with a standalone number inside (`Agent 47 Smith`) imports as `Smith` | **Valid.** Fix: cut only after the previous card's dates and labels, take the last line, then strip leading standalone numbers only; test it |
 
 Status: 2 open. The authorized inspection budget is used.
+
+### Fix round for inspection 9 (user-authorized: fix R1–R2, run the checks, no further inspection)
+
+- R1: on card copies, only a recognised list header (`LIST_HEADER`: a name column, then a delimiter, no digits) hides a `Wagered` label on the first line.
+- R2: `nameBefore` cuts only after the previous card's last date or label and keeps the name line whole. Leading amounts are stripped only on the same line as that cut (flattened copies). A line that is just a decimal amount isn't a name.
+- Proofs: `npm test` 126/126 (new: tab after the first card's name; `Agent 47 Smith` on its own line and flattened; a leftover commission isn't a name). tsc and eslint clean. `verify:concurrency` 8/8. Database code is unchanged since `d4a9be8`, where `verify:postgres` passed 18/18.
+- Not independently inspected: this round's parser changes. The user chose to skip a further Codex inspection.

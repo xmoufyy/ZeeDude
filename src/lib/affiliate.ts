@@ -19,15 +19,16 @@ const WAGERED = /(?<![\p{L}\p{N}_])wagered(?![\p{L}\p{N}_])/giu;
 // The amount right after a "Wagered" label (an optional ":" or SOL symbol
 // first). It must be a whole number token: "1e10" or "5.5.5" don't match.
 const AMOUNT_AFTER = /^[\s:]*[◎$]?\s*(\d[\d,]*(?:\.\d+)?|\.\d+)(?![\p{L}\p{N}_]|[.,]\d)/u;
-// Text on a player card that is never part of a name: dates and times, the
-// other labels, and standalone numbers. Labels and numbers only count as whole
-// words, so "RegeneratedKing" and "Mario4k" stay intact.
-const NOISE =
-  /\d{1,2}\/\d{1,2}\/\d{2,4}(?:,?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M)?)?|(?<![\p{L}\p{N}_])(?:comm?iss?ion|generated|first\s+seen|last\s+seen)(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_.])[◎$]?\d[\d,]*(?:\.\d+)?(?:\s*sol)?(?![\p{L}\p{N}_])/giu;
+// Where the previous card's text ends: its dates and times and its other
+// labels. Labels only count as whole words, so "RegeneratedKing" stays intact.
+const CARD_END =
+  /\d{1,2}\/\d{1,2}\/\d{2,4}(?:,?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M)?)?|(?<![\p{L}\p{N}_])(?:comm?iss?ion|generated|first\s+seen|last\s+seen)(?![\p{L}\p{N}_])/giu;
+// Amounts left over from the previous card on the same line (its commission).
+const LEADING_AMOUNTS = /^(?:[◎$]?\d[\d,]*(?:\.\d+)?(?:\s*sol)?(?![\p{L}\p{N}_])\s*)+/iu;
+// The first line of a simple list's header: a name column, then a delimiter.
+const LIST_HEADER = /^\s*(?:user\s*name|username|user|name|player|referral|account)s?\s*[,;\t]/i;
 // Labels that only player cards have (page-level totals above the list don't).
 const CARD_MARKER = /(?<![\p{L}\p{N}_])(?:generated|first\s+seen|last\s+seen)(?![\p{L}\p{N}_])/iu;
-const DATE = /\d{1,2}\/\d{1,2}\/\d{2,4}/;
-const LABEL = /^(wagered|comm?iss?ion|generated|first seen|last seen)(?![\p{L}\p{N}_])/iu;
 // Verified ticks and similar marks the page shows after a name.
 const TRAILING_MARKS = /[\s✓✔☑✅︎️]+$/u;
 
@@ -37,16 +38,20 @@ function cleanName(raw: string): string {
 
 const lineAt = (text: string, index: number) => text.slice(0, index).split("\n").length;
 
-/** The player name just before a "Wagered" label: what's left after the previous card's dates, labels and numbers. */
+/**
+ * The player name just before a "Wagered" label: the last line after the
+ * previous card's last date or label. Only on the line that card ended on
+ * (a flattened copy) are leading amounts stripped; a name on its own line is
+ * kept whole ("Agent 47 Smith"), unless it's just a decimal amount.
+ */
 function nameBefore(prefix: string): string {
   let cut = 0;
-  for (const m of prefix.matchAll(NOISE)) cut = m.index + m[0].length;
-  const name = prefix.slice(cut).split("\n").map(cleanName).filter(Boolean).at(-1);
-  if (name) return name;
-  // An all-digit name (e.g. "12345") is eaten by the number rule; accept it
-  // when it's alone on the line right before "Wagered".
-  const last = prefix.split("\n").map(cleanName).filter(Boolean).at(-1);
-  return last && !DATE.test(last) && !LABEL.test(last) && !/[\s,]/.test(last) ? last : "";
+  for (const m of prefix.matchAll(CARD_END)) cut = m.index + m[0].length;
+  const lines = prefix.slice(cut).split("\n").map(cleanName);
+  const index = lines.findLastIndex(Boolean);
+  if (index < 0) return "";
+  if (index === 0) return cleanName(lines[0].replace(LEADING_AMOUNTS, "")) || (/^\d+$/.test(lines[0]) ? lines[0] : "");
+  return /^[◎$]?[\d,]*\.\d+(\s*sol)?$/i.test(lines[index]) ? "" : lines[index];
 }
 
 type Found = { line: number; name: string; amount: string };
@@ -63,9 +68,10 @@ export function parseAffiliatePaste(raw: string): AffiliateParse {
   const text = raw.replace(/^﻿/, "").replace(/\r\n?/g, "\n").replace(/[  -​ ]/g, " ");
   const errors: string[] = [];
   const warnings: string[] = [];
-  // A CSV-style header ("username, wagered") isn't a player card.
+  // A CSV-style header ("username, wagered") isn't a player card. It must start
+  // with a name column, so a card line like "Alice<TAB>Wagered" still counts.
   const firstLine = text.trimStart().split("\n")[0];
-  const headerEnd = /[,;\t]/.test(firstLine) && !/\d/.test(firstLine) ? text.indexOf(firstLine) + firstLine.length : 0;
+  const headerEnd = LIST_HEADER.test(firstLine) && !/\d/.test(firstLine) ? text.indexOf(firstLine) + firstLine.length : 0;
   const labels = [...text.matchAll(WAGERED)].filter((m) => m.index >= headerEnd);
   let found: Found[];
 

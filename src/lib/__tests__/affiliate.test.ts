@@ -122,6 +122,27 @@ describe("parseAffiliatePaste", () => {
   it("only treats a delimited first line as a list header", () => {
     expect(parseAffiliatePaste("Bob nope\nAlice, 100").errors[0]).toMatch(/Line 1: expected "name, amount"/);
   });
+
+  it("reads a first card with a tab between the name and Wagered", () => {
+    expect(parseAffiliatePaste("Alice\tWagered\n100\nGenerated 1\nBob\tWagered\n200\nGenerated 2")).toEqual({
+      rows: [
+        { username: "Alice", lifetimeSol: 100 },
+        { username: "Bob", lifetimeSol: 200 },
+      ],
+      warnings: [],
+      errors: [],
+    });
+  });
+
+  it("keeps names with a standalone number inside, and strips only the previous card's amounts", () => {
+    expect(parseAffiliatePaste("Agent 47 Smith\nWagered 100\nGenerated 1").rows).toEqual([{ username: "Agent 47 Smith", lifetimeSol: 100 }]);
+    const flat = "Noah Wagered 5 Comission Generated 0.4006 Agent 47 Smith Wagered 3 Comission Generated 0.1";
+    expect(parseAffiliatePaste(flat).rows).toEqual([
+      { username: "Noah", lifetimeSol: 5 },
+      { username: "Agent 47 Smith", lifetimeSol: 3 },
+    ]);
+    expect(parseAffiliatePaste("Noah\nWagered 5\nComission\nGenerated\n0.4006\nWagered 3").errors[0]).toMatch(/no player name/);
+  });
 });
 
 describe("pickSnapshots", () => {
