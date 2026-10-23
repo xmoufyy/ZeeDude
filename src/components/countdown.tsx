@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type Props = {
@@ -7,6 +9,8 @@ type Props = {
   endsAt: string;
   /** Server time at render, so the first client render matches the HTML. */
   serverNow: number;
+  /** The race's results are locked in. */
+  finalized?: boolean;
 };
 
 const UNITS = [
@@ -25,7 +29,8 @@ function split(ms: number) {
   });
 }
 
-export function Countdown({ startsAt, endsAt, serverNow }: Props) {
+export function Countdown({ startsAt, endsAt, serverNow, finalized = false }: Props) {
+  const router = useRouter();
   const [now, setNow] = useState(serverNow);
   const start = Date.parse(startsAt);
   const end = Date.parse(endsAt);
@@ -37,6 +42,16 @@ export function Countdown({ startsAt, endsAt, serverNow }: Props) {
 
   const notStarted = now < start;
   const ended = now >= end;
+
+  // When the race starts or ends while the page is open, re-render it on the
+  // server so the leaderboard appears (or the next race shows). Retries until
+  // the server's clock agrees, since the browser's may run a little ahead.
+  const serverBehind = (!notStarted && serverNow < start) || (ended && serverNow < end);
+  useEffect(() => {
+    if (!serverBehind) return;
+    const id = setTimeout(() => router.refresh(), 3000);
+    return () => clearTimeout(id);
+  }, [serverBehind, serverNow, router]);
   const parts = split(notStarted ? start - now : end - now);
 
   // Time left in the browser tab title, e.g. "4d 6h left · ...".
@@ -53,7 +68,16 @@ export function Countdown({ startsAt, endsAt, serverNow }: Props) {
   if (ended) {
     return (
       <p className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-center font-semibold text-gold">
-        This race has ended. Final results are being locked in.
+        {finalized ? (
+          <>
+            This race has ended.{" "}
+            <Link href="/history" className="underline underline-offset-4 hover:text-gold-light">
+              See the winners
+            </Link>
+          </>
+        ) : (
+          "This race has ended. Final results are being locked in."
+        )}
       </p>
     );
   }

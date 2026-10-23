@@ -1,4 +1,5 @@
 import type { LeaderboardRow } from "@/lib/leaderboard";
+import type { PlacePrize } from "@/lib/payouts";
 import { formatSol } from "@/lib/sol";
 import { CountUp } from "./count-up";
 import { PaidBadge } from "./paid-badge";
@@ -34,12 +35,17 @@ function Crown({ className }: { className?: string }) {
   );
 }
 
-export function Podium({ rows }: { rows: LeaderboardRow[] }) {
+/**
+ * Top 3. Pass `placePrizes` for a live race so empty spots show what the place
+ * pays ("up for grabs"); on finished races an empty spot won nothing.
+ */
+export function Podium({ rows, placePrizes }: { rows: LeaderboardRow[]; placePrizes?: PlacePrize[] }) {
   return (
     <ol className="grid grid-cols-3 items-start gap-2 sm:gap-5" aria-label="Top 3 players">
       {PLACES.map((place) => {
         const row = rows[place.index];
         const first = place.index === 0;
+        const openPrize = row ? undefined : placePrizes?.[place.index]?.sol;
         return (
           <li
             key={place.index}
@@ -72,9 +78,11 @@ export function Podium({ rows }: { rows: LeaderboardRow[] }) {
                 <span className="ml-1 font-sans text-[0.65rem] font-semibold text-muted sm:text-xs">SOL</span>
               </p>
               <div className={`mt-3 w-full rounded-xl border border-current/30 bg-current/5 px-2 py-1.5 sm:py-2 ${place.text}`}>
-                <p className="text-[0.6rem] font-semibold tracking-widest uppercase opacity-80 sm:text-[0.7rem]">Prize</p>
+                <p className="text-[0.6rem] font-semibold tracking-widest uppercase opacity-80 sm:text-[0.7rem]">
+                  {openPrize ? "Up for grabs" : "Prize"}
+                </p>
                 <p className="font-display text-base sm:text-2xl">
-                  {formatSol(row?.prizeSol ?? 0)}
+                  {formatSol(row?.prizeSol ?? openPrize ?? 0)}
                   <span className="ml-1 font-sans text-xs font-semibold">SOL</span>
                 </p>
               </div>

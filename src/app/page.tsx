@@ -62,7 +62,7 @@ async function CurrentBoard() {
             <span className="font-display text-4xl text-shine sm:text-5xl">{formatSol(period.prizePoolSol)} SOL</span>
             <span className="text-sm font-semibold tracking-[0.2em] text-muted uppercase">Weekly prize pool</span>
           </div>
-          <Countdown startsAt={period.startsAt} endsAt={period.endsAt} serverNow={serverNow} />
+          <Countdown startsAt={period.startsAt} endsAt={period.endsAt} serverNow={serverNow} finalized={period.finalized} />
           <p className="text-sm text-muted">
             <time dateTime={period.startsAt}>{formatPeriodDate(period.startsAt)}</time>
             {" → "}
@@ -106,7 +106,7 @@ async function CurrentBoard() {
         ) : (
           <>
             <div className="pt-6">
-              <Podium rows={rows} />
+              <Podium rows={rows} placePrizes={prizes} />
             </div>
             <LeaderboardTable rows={rows.slice(3)} caption={`${period.name} rankings, 4th place and below`} />
           </>

@@ -83,14 +83,19 @@ async function PastBoard({ searchParams }: Pick<PageProps<"/history">, "searchPa
             {formatPeriodDate(period.startsAt)} → {formatPeriodDate(period.endsAt)}
           </p>
           <p className="mt-1 text-sm text-muted">
-            {board.playerCount} players · {formatSol(board.totalWageredSol, { max: 2 })} SOL wagered ·{" "}
-            {formatSol(period.prizePoolSol)} SOL prize pool
+            {board.playerCount} {board.playerCount === 1 ? "player" : "players"} ·{" "}
+            {formatSol(board.totalWageredSol, { max: 2 })} SOL wagered · {formatSol(period.prizePoolSol)} SOL prize pool
           </p>
         </div>
+        {!period.finalized && (
+          <p className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-gold">
+            Unofficial results: this race has ended but hasn&apos;t been confirmed yet, so standings and prizes may still change.
+          </p>
+        )}
         <div className="pt-6">
           <Podium rows={rows} />
         </div>
-        <LeaderboardTable rows={rows.slice(3)} caption={`${period.name} final standings, 4th place and below`} />
+        <LeaderboardTable rows={rows.slice(3)} caption={`${period.name} ${period.finalized ? "final" : "unofficial"} standings, 4th place and below`} />
       </section>
     </div>
   );

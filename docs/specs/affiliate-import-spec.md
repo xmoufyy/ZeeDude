@@ -30,7 +30,7 @@ Requirements:
   - New models `AffiliateSnapshot(takenAt)` and `AffiliateReading(snapshotId, username, key, lifetimeSol)`, unique on `(snapshotId, key)`, with cascade delete.
   - Postgres migration `0004_affiliate_snapshots`. SQLite stays on `db push`.
 - **Weekly math.**
-  - For a period: `latest` = newest snapshot with `takenAt <= endsAt + 1h`. If that is before `startsAt - 1h`, the period has no data.
+  - For a period: `latest` = newest snapshot with `takenAt <= endsAt + 1h`. If that is not after `startsAt + 1h`, the period has no data yet. A copy within the hour around the start is the period's starting point, never its latest, so the Sunday copy never counts the previous week's last bets in the new week. This was found in the post-inspection audit, and it replaces the inspection-8 R5 handling, which counted pre-start bets.
   - `baseline` = the snapshot with `takenAt` strictly earlier than `latest.takenAt` that is closest to `startsAt`, on either side. Copies sharing a `takenAt` are ordered by `createdAt`, so the later save is `latest`.
   - Copies sharing a `takenAt` are re-saves of one moment. Only the last saved one counts, as latest or as baseline, so a correction at the baseline time replaces the original (inspection 8 R4).
   - Copies before the start are not limited by age (inspection 7 R2). The two newest distinct copy times before `startsAt` are candidates, so a latest copy taken just before the start still finds its baseline (inspection 8 R5).

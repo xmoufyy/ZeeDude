@@ -282,3 +282,24 @@ Status: 2 open. The authorized inspection budget is used.
 - R2: `nameBefore` cuts only after the previous card's last date or label and keeps the name line whole. Leading amounts are stripped only on the same line as that cut (flattened copies). A line that is just a decimal amount isn't a name.
 - Proofs: `npm test` 126/126 (new: tab after the first card's name; `Agent 47 Smith` on its own line and flattened; a leftover commission isn't a name). tsc and eslint clean. `verify:concurrency` 8/8. Database code is unchanged since `d4a9be8`, where `verify:postgres` passed 18/18.
 - Not independently inspected: this round's parser changes. The user chose to skip a further Codex inspection.
+
+## Site audit (host, after inspection 9) and fixes
+
+- Live probe of `zeedude.vercel.app`:
+  - all public pages, the OG image, robots and sitemap return 200
+  - unknown pages return 404
+  - admin pages redirect logged-out visitors with no data
+  - cron rejects requests without the secret
+  - social and referral links are correct
+- Fixed (user-authorized), with tests:
+  1. **High:** the Sunday boundary copy was the new week's `latest`, so the new week counted last week's final bets until the next paste. A copy within 1h of the start is now only a starting point. This also supersedes inspection 8 R5's handling, which counted pre-start bets. Preview and save still list the new week as "starting point".
+  2. Empty podium spots on a live race show the place's prize ("Up for grabs") instead of 0.
+  3. The countdown re-renders the page when a race starts or ends while open, retrying until the server's clock agrees.
+  4. Past Winners marks ended-but-unconfirmed races as unofficial.
+  5. An ended, finalized race links to Past Winners instead of "being locked in".
+  6. "1 player" plural on Past Winners.
+- Proofs:
+  - `npm test` 131/131 (new: boundary-copy selection; podium and countdown render tests)
+  - tsc and eslint clean
+  - `verify:concurrency` 8/8; the affiliate scenario now runs the Sunday sequence (last-week copy, boundary copy, which leaves the board untouched, then a mid-week copy giving 1.5)
+- Not independently inspected.

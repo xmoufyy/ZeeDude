@@ -59,7 +59,7 @@ function PeriodPreview({ preview: p }: { preview: AffiliatePeriodPreview }) {
         <p className="text-sm text-muted">
           {p.baselineAt
             ? `Comparing the copy from ${formatPeriodDate(p.baselineAt)} with ${p.latestAt ? formatPeriodDate(p.latestAt) : "-"}: ${p.players} players, ${formatSol(p.totalSol, { max: 2 })} SOL wagered.`
-            : "No earlier copy to compare with, so this one becomes the starting point. Totals show up after the next copy."}
+            : "This copy is the race's starting point, so its leaderboard isn't changed yet. Totals show up after the next copy."}
         </p>
       </div>
       {p.warnings.length > 0 && (

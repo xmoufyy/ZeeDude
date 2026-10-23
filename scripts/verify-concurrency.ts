@@ -252,15 +252,17 @@ const checks: Check[] = [
       const dan = await db.wagerEntry.findMany({ where: { periodId: later.id } });
       if (dan.length !== 1 || dan[0].wageredSol !== 2.5) return `45-day-old baseline ignored (${JSON.stringify(dan.map((e) => e.wageredSol))})`;
 
-      // Newest copy taken just before the start (so it's the latest) still finds the older baseline.
+      // Sunday: the boundary copy only starts the new week; last week's bets never count in it.
       await wipe();
-      const early = await db.period.create({
-        data: { name: "Early copy", startsAt: new Date(now - 2 * DAY), endsAt: new Date(now + 5 * DAY), prizePoolSol: 10, payoutSplit: SPLIT },
+      const sunday = await db.period.create({
+        data: { name: "New week", startsAt: new Date(now - 2 * DAY), endsAt: new Date(now + 5 * DAY), prizePoolSol: 10, payoutSplit: SPLIT },
       });
-      await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 10 }], new Date(early.startsAt.getTime() - 7 * DAY));
-      await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 14 }], new Date(early.startsAt.getTime() - 30 * 60_000));
-      const eve = await db.wagerEntry.findMany({ where: { periodId: early.id } });
-      if (eve.length !== 1 || eve[0].wageredSol !== 4) return `pre-start latest lost its baseline (${JSON.stringify(eve.map((e) => e.wageredSol))})`;
+      const eveBoard = async () => (await db.wagerEntry.findMany({ where: { periodId: sunday.id } })).map((e) => e.wageredSol);
+      await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 10 }], new Date(sunday.startsAt.getTime() - 2 * DAY));
+      await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 14 }], new Date(sunday.startsAt.getTime() + 2 * 60_000));
+      if ((await eveBoard()).length) return `boundary copy counted last week's bets (${JSON.stringify(await eveBoard())})`;
+      await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 15.5 }], new Date(sunday.startsAt.getTime() + DAY));
+      if (JSON.stringify(await eveBoard()) !== "[1.5]") return `mid-week copy after the boundary: ${JSON.stringify(await eveBoard())}, expected [1.5]`;
       return null;
     },
   },

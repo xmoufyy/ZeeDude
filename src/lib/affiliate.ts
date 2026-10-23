@@ -152,10 +152,10 @@ export type SnapshotRef = { id: string; takenAt: Date; createdAt?: Date };
 export type PeriodWindow = { startsAt: Date; endsAt: Date };
 
 /**
- * Which snapshots to compare for a period: the latest one taken before the
- * period ended (plus grace), against the one taken closest to its start among
- * copies strictly older than that latest one. Returns nulls when there's
- * nothing to compare yet.
+ * Which snapshots to compare for a period: the latest one taken more than the
+ * grace window after the start and before the period ended (plus grace),
+ * against the one taken closest to its start among copies strictly older than
+ * that latest one. Returns nulls when there's nothing to compare yet.
  */
 export function pickSnapshots<T extends SnapshotRef>(
   snapshots: T[],
@@ -172,7 +172,10 @@ export function pickSnapshots<T extends SnapshotRef>(
     (s, i) => s.takenAt.getTime() <= endLimit && sorted[i + 1]?.takenAt.getTime() !== s.takenAt.getTime(),
   );
   const latest = usable.at(-1) ?? null;
-  if (!latest || latest.takenAt.getTime() < start - BOUNDARY_GRACE_MS) return { latest: null, baseline: null, baselineOffMs: null };
+  // A copy taken within the grace window around the start is this period's
+  // starting point, never its latest: comparing it with an older copy would
+  // count the previous period's last bets. No totals until a later copy.
+  if (!latest || latest.takenAt.getTime() <= start + BOUNDARY_GRACE_MS) return { latest: null, baseline: null, baselineOffMs: null };
 
   // A copy with the same time as the latest one is the same moment, so it
   // can't serve as the starting point (it would zero every total).

@@ -185,7 +185,21 @@ describe("pickSnapshots", () => {
     expect(pickSnapshots([at("2026-10-20T00:00:00Z")], week)).toMatchObject({ baseline: null });
     expect(pickSnapshots([at("2026-10-01T00:00:00Z")], week)).toEqual({ latest: null, baseline: null, baselineOffMs: null });
     const lateBoundary = new Date(week.endsAt.getTime() + BOUNDARY_GRACE_MS + 1);
-    expect(pickSnapshots([at("2026-10-18T21:00:00Z"), { id: "late", takenAt: lateBoundary }], week).latest?.id).toBe("2026-10-18T21:00:00Z");
+    expect(pickSnapshots([at("2026-10-20T00:00:00Z"), { id: "late", takenAt: lateBoundary }], week).latest?.id).toBe("2026-10-20T00:00:00Z");
+  });
+
+  it("treats a copy near the start as the starting point only, never the latest", () => {
+    // Sunday 5 PM copy alone in the new week: no totals yet, rather than
+    // comparing it with a mid-week copy from the week before.
+    const lastWeek = at("2026-10-16T18:00:00Z");
+    const boundary = at("2026-10-18T21:02:00Z");
+    expect(pickSnapshots([lastWeek, boundary], week)).toEqual({ latest: null, baseline: null, baselineOffMs: null });
+    // Same for a copy just before the start, or within the hour after it.
+    expect(pickSnapshots([lastWeek, at("2026-10-18T20:30:00Z")], week).latest).toBeNull();
+    expect(pickSnapshots([lastWeek, at("2026-10-18T21:59:00Z")], week).latest).toBeNull();
+    // Once a later copy arrives, the boundary copy is the baseline.
+    const midWeek = at("2026-10-20T12:00:00Z");
+    expect(pickSnapshots([lastWeek, boundary, midWeek], week)).toMatchObject({ latest: midWeek, baseline: boundary });
   });
 });
 

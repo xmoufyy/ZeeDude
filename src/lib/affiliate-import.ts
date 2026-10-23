@@ -20,6 +20,7 @@ export type PeriodOutcome = {
   /** null: no earlier copy to compare with yet, so the leaderboard is left alone. */
   baselineAt: Date | null;
   latestAt: Date | null;
+  startsAt: Date;
   rows: WeeklyRow[];
   warnings: string[];
 };
@@ -74,6 +75,7 @@ async function computePeriod(client: DbClient, period: Period, pending?: Pending
     periodName: period.name,
     baselineAt: baseline?.takenAt ?? null,
     latestAt: latest?.takenAt ?? null,
+    startsAt: period.startsAt,
     rows: [],
     warnings: [],
   };
@@ -109,6 +111,11 @@ async function apply(tx: Tx, outcomes: PeriodOutcome[]) {
   }
 }
 
+/** Periods worth reporting for a copy: ones with totals, or ones this copy starts (taken around their start). */
+function shown(o: PeriodOutcome, takenAt: Date) {
+  return o.latestAt !== null || Math.abs(o.startsAt.getTime() - takenAt.getTime()) <= BOUNDARY_GRACE_MS;
+}
+
 function checkTakenAt(takenAt: Date, now = new Date()) {
   if (takenAt.getTime() > now.getTime() + 5 * 60_000) throw new AdminError("The copy time can't be in the future.");
 }
@@ -119,7 +126,7 @@ export async function previewAffiliateSnapshot(rows: AffiliateRow[], takenAt: Da
   const pending = { ref: { id: NEW_ID, takenAt, createdAt: new Date() }, rows };
   const periods = await affectedPeriods(db, takenAt);
   const outcomes = await Promise.all(periods.map((p) => computePeriod(db, p, pending)));
-  return outcomes.filter((o) => o.latestAt);
+  return outcomes.filter((o) => shown(o, takenAt));
 }
 
 /** Stores the paste and recomputes the leaderboard of every open period it touches. */
@@ -134,7 +141,7 @@ export async function saveAffiliateSnapshot(rows: AffiliateRow[], takenAt: Date)
       const outcomes = [];
       for (const p of await affectedPeriods(tx, takenAt)) outcomes.push(await computePeriod(tx, p));
       await apply(tx, outcomes);
-      return outcomes.filter((o) => o.latestAt);
+      return outcomes.filter((o) => shown(o, takenAt));
     },
     { timeoutMs: 60_000 },
   );
