@@ -218,3 +218,16 @@ Status: open. Review only (no implementation authorized by this command).
 | R2 | low | `reviewedKey` is capped at 64 UTF-16 units, but lowercasing can lengthen an accepted 64-character name (e.g. U+0130), so approve/reject always fail for such a claim | **Valid.** Fix: allow the normalized maximum (or validate the normalized length at save) and add a boundary test |
 
 Status: 2 open. Awaiting the user's decision.
+
+## Inspection 7: fresh Codex session, verdict REVISE
+
+- Contract: `docs/specs/affiliate-import-spec.md` (written for this inspection; not plan-reviewed). Base `0a78e1c`, snapshot `cbd8b55`. Covers the Rules button, the SolPump affiliate import, the daily cron, the Vercel build guard, sign-in error messages and the share-preview URL.
+- Result: `scratchpad/claudex/inspect7/claudex-2c0nuts4/result.json`, 56s. Verdict **REVISE**. Limitations reported: full suites and the browser layout were not rerun by the inspector.
+
+| ID | Sev | Finding | Host position |
+|---|---|---|---|
+| R1 | high | In the `name, amount` fallback, malformed lines are silently skipped (`Alice, 100\nBob, nope` imports Alice only), so an incomplete copy can replace the board | **Valid.** Fix: in fallback mode every nonblank line must parse, else error; add a mixed valid/invalid test |
+| R2 | medium | Snapshot query ignores copies older than 30 days before the period start, so after a long gap an existing baseline is missed and the board is left untouched | **Valid.** Fix: load in-window copies plus the newest copy before the start, with no age cutoff; test a >30-day-old baseline |
+| R3 | medium | Two copies with the same `takenAt` can be chosen as latest and baseline (zero deltas wipe the board), and the choice depends on DB order | **Valid.** Fix: baseline must be strictly earlier than latest; break `takenAt` ties by `createdAt`; test repeated saves at one time |
+
+Status: 3 open. Review only (no implementation authorized by this command).
