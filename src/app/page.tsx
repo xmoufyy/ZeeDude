@@ -42,11 +42,13 @@ async function CurrentBoard() {
   }
 
   const { period, rows, prizes } = board;
+  // A scheduled race has no standings yet: wagers only count once it starts.
+  const notStarted = Date.parse(period.startsAt) > serverNow;
   const freshness = assessFreshness({
     now: serverNow,
     fromFallback: loaded.fromFallback,
     fallbackSavedAt: loaded.fromFallback ? loaded.savedAt : undefined,
-    live: !period.finalized && Date.parse(period.endsAt) > serverNow,
+    live: !notStarted && !period.finalized && Date.parse(period.endsAt) > serverNow,
     dataUpdatedAt: board.dataUpdatedAt,
     source: board.source,
     staleAfterMs: staleAfterMs(),
@@ -74,19 +76,41 @@ async function CurrentBoard() {
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <h2 id="board-heading" className="font-display text-2xl sm:text-3xl">
-              This Week&apos;s <span className="text-gold-gradient">Leaderboard</span>
+              {notStarted ? (
+                <>
+                  Next <span className="text-gold-gradient">Race</span>
+                </>
+              ) : (
+                <>
+                  This Week&apos;s <span className="text-gold-gradient">Leaderboard</span>
+                </>
+              )}
             </h2>
             <GameRules />
           </div>
-          <p className="text-muted">
-            {board.playerCount} players · {formatSol(board.totalWageredSol, { max: 2 })} SOL wagered
+          {!notStarted && (
+            <>
+              <p className="text-muted">
+                {board.playerCount} {board.playerCount === 1 ? "player" : "players"} ·{" "}
+                {formatSol(board.totalWageredSol, { max: 2 })} SOL wagered
+              </p>
+              <AutoRefresh updatedAt={board.dataUpdatedAt} serverNow={serverNow} />
+            </>
+          )}
+        </div>
+        {notStarted ? (
+          <p className="panel px-5 py-10 text-center text-muted">
+            The race starts <time dateTime={period.startsAt}>{formatPeriodDate(period.startsAt)}</time>. The leaderboard opens then, and
+            only wagers placed from that moment count.
           </p>
-          <AutoRefresh updatedAt={board.dataUpdatedAt} serverNow={serverNow} />
-        </div>
-        <div className="pt-6">
-          <Podium rows={rows} />
-        </div>
-        <LeaderboardTable rows={rows.slice(3)} caption={`${period.name} rankings, 4th place and below`} />
+        ) : (
+          <>
+            <div className="pt-6">
+              <Podium rows={rows} />
+            </div>
+            <LeaderboardTable rows={rows.slice(3)} caption={`${period.name} rankings, 4th place and below`} />
+          </>
+        )}
       </section>
 
       <PrizeBreakdown prizes={prizes} poolSol={period.prizePoolSol} />
