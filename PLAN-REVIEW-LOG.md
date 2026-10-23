@@ -231,3 +231,11 @@ Status: 2 open. Awaiting the user's decision.
 | R3 | medium | Two copies with the same `takenAt` can be chosen as latest and baseline (zero deltas wipe the board), and the choice depends on DB order | **Valid.** Fix: baseline must be strictly earlier than latest; break `takenAt` ties by `createdAt`; test repeated saves at one time |
 
 Status: 3 open. Review only (no implementation authorized by this command).
+
+### Fix round for inspection 7 (user-authorized: fix R1–R3, then one more fresh inspection)
+
+- The user also asked mid-round that the importer accept *any* text copied from the affiliate page. The parser was rebuilt around standalone `Wagered` labels: each card is the name left after stripping dates, labels, standalone numbers and ticks, plus the first amount after `Wagered`. It handles separate-line, one-line, tab-separated and fully flattened copies. Page totals before the first card are skipped with a warning; a CSV header line isn't a card. Contract updated in `docs/specs/affiliate-import-spec.md` §2.
+- R1: the simple `name, amount` list is strict. Every non-empty line must parse (an all-text first line counts as a header), otherwise nothing is saved.
+- R2: `computePeriod` loads the copies from the period start onward plus the newest copy before the start, with no age cutoff.
+- R3: `pickSnapshots` only takes a baseline strictly older than `latest`, and breaks equal `takenAt` ties by `createdAt` (so the later save wins).
+- Proofs: `npm test` 121/121 (new tests: tab, flattened, page-total, all-digit-name, strict-list and same-time cases). tsc and eslint clean. `verify:concurrency` 8/8; the affiliate scenario now also re-saves at the same copy time (expects 51, not 1) and uses a 45-day-old baseline (expects 2.5, not an untouched board).

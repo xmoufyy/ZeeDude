@@ -47,13 +47,21 @@ async function readings(client: DbClient, snapshotId: string): Promise<Affiliate
 
 /** Works out a period's wagers from the stored snapshots, plus `pending` if it isn't saved yet. */
 async function computePeriod(client: DbClient, period: Period, pending?: PendingSnapshot): Promise<PeriodOutcome> {
-  const refs: SnapshotRef[] = await client.affiliateSnapshot.findMany({
-    // Old enough to find a start-of-period copy even if one week's was missed.
-    where: {
-      takenAt: { gte: new Date(period.startsAt.getTime() - 30 * 24 * HOUR), lte: new Date(period.endsAt.getTime() + BOUNDARY_GRACE_MS) },
-    },
-    select: { id: true, takenAt: true },
-  });
+  // Every copy from the period's start onward, plus the newest copy before it
+  // however old: that's the closest candidate on the "before" side.
+  const select = { id: true, takenAt: true, createdAt: true } as const;
+  const [inPeriod, before] = await Promise.all([
+    client.affiliateSnapshot.findMany({
+      where: { takenAt: { gte: period.startsAt, lte: new Date(period.endsAt.getTime() + BOUNDARY_GRACE_MS) } },
+      select,
+    }),
+    client.affiliateSnapshot.findFirst({
+      where: { takenAt: { lt: period.startsAt } },
+      orderBy: [{ takenAt: "desc" }, { createdAt: "desc" }],
+      select,
+    }),
+  ]);
+  const refs: SnapshotRef[] = before ? [before, ...inPeriod] : inPeriod;
   if (pending) refs.push(pending.ref);
   const { latest, baseline, baselineOffMs } = pickSnapshots(refs, period);
   const outcome: PeriodOutcome = {
@@ -103,7 +111,7 @@ function checkTakenAt(takenAt: Date, now = new Date()) {
 /** What saving this paste would do, without saving anything. */
 export async function previewAffiliateSnapshot(rows: AffiliateRow[], takenAt: Date): Promise<PeriodOutcome[]> {
   checkTakenAt(takenAt);
-  const pending = { ref: { id: NEW_ID, takenAt }, rows };
+  const pending = { ref: { id: NEW_ID, takenAt, createdAt: new Date() }, rows };
   const periods = await affectedPeriods(db, takenAt);
   const outcomes = await Promise.all(periods.map((p) => computePeriod(db, p, pending)));
   return outcomes.filter((o) => o.latestAt);

@@ -234,6 +234,23 @@ const checks: Check[] = [
       const expected = 40 + times.indexOf(secondLatest);
       got = JSON.stringify(await board());
       if (got !== JSON.stringify({ Alice: expected })) return `after delete: ${got}, expected Alice ${expected}`;
+
+      // Re-saving at the same copy time never compares a copy with itself.
+      const sameTime = at(DAY + 9 * 60 * 60_000);
+      await saveAffiliateSnapshot([{ username: "Alice", lifetimeSol: 150 }], sameTime);
+      await saveAffiliateSnapshot([{ username: "Alice", lifetimeSol: 151 }], sameTime);
+      got = JSON.stringify(await board());
+      if (got !== JSON.stringify({ Alice: 51 })) return `after same-time re-save: ${got}, expected Alice 51`;
+
+      // A starting copy far older than the period (a long gap) is still used.
+      await wipe();
+      const later = await db.period.create({
+        data: { name: "After a gap", startsAt: new Date(now - 2 * DAY), endsAt: new Date(now + 5 * DAY), prizePoolSol: 10, payoutSplit: SPLIT },
+      });
+      await saveAffiliateSnapshot([{ username: "Dan", lifetimeSol: 10 }], new Date(now - 45 * DAY));
+      await saveAffiliateSnapshot([{ username: "Dan", lifetimeSol: 12.5 }], new Date(now - DAY));
+      const dan = await db.wagerEntry.findMany({ where: { periodId: later.id } });
+      if (dan.length !== 1 || dan[0].wageredSol !== 2.5) return `45-day-old baseline ignored (${JSON.stringify(dan.map((e) => e.wageredSol))})`;
       return null;
     },
   },

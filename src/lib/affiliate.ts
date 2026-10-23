@@ -14,7 +14,16 @@ export const BOUNDARY_GRACE_MS = 60 * 60 * 1000;
 export type AffiliateRow = { username: string; lifetimeSol: number };
 export type AffiliateParse = { rows: AffiliateRow[]; warnings: string[]; errors: string[] };
 
-const NUMBER = /^[◎$\s]*-?[\d,]*\.?\d+\s*(sol)?$/i;
+// "Wagered" as a standalone word (not part of a username like "wageredking").
+const WAGERED = /(?<![\p{L}\p{N}_])wagered(?![\p{L}\p{N}_])/giu;
+// The amount right after a "Wagered" label (an optional ":" or SOL symbol first).
+const AMOUNT_AFTER = /^[\s:]*[◎$]?\s*(\d[\d,]*(?:\.\d+)?|\.\d+)/u;
+// Text on a player card that is never part of a name: dates and times, the
+// other labels, and standalone numbers (but not digits inside "Mario4k").
+const NOISE =
+  /\d{1,2}\/\d{1,2}\/\d{2,4}(?:,?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M)?)?|comm?iss?ion|generated|first\s+seen|last\s+seen|(?<![\p{L}\p{N}_.])[◎$]?\d[\d,]*(?:\.\d+)?(?:\s*sol)?(?![\p{L}\p{N}_])/giu;
+// Labels that only player cards have (page-level totals above the list don't).
+const CARD_MARKER = /generated|first\s+seen|last\s+seen/i;
 const DATE = /\d{1,2}\/\d{1,2}\/\d{2,4}/;
 const LABEL = /^(wagered|comm?iss?ion|generated|first seen|last seen)\b/i;
 // Verified ticks and similar marks the page shows after a name.
@@ -24,46 +33,82 @@ function cleanName(raw: string): string {
   return raw.replace(/[\u0000-\u001f\u007f]/g, "").replace(TRAILING_MARKS, "").trim();
 }
 
+const lineAt = (text: string, index: number) => text.slice(0, index).split("\n").length;
+
+/** The player name just before a "Wagered" label: what's left after the previous card's dates, labels and numbers. */
+function nameBefore(prefix: string): string {
+  let cut = 0;
+  for (const m of prefix.matchAll(NOISE)) cut = m.index + m[0].length;
+  const name = prefix.slice(cut).split("\n").map(cleanName).filter(Boolean).at(-1);
+  if (name) return name;
+  // An all-digit name (e.g. "12345") is eaten by the number rule; accept it
+  // when it's alone on the line right before "Wagered".
+  const last = prefix.split("\n").map(cleanName).filter(Boolean).at(-1);
+  return last && !DATE.test(last) && !LABEL.test(last) && !/[\s,]/.test(last) ? last : "";
+}
+
+type Found = { line: number; name: string; amount: string };
+
 /**
- * Reads text copied from SolPump's affiliate page. Each player appears as a
- * name followed by "Wagered <amount>" (on one line or two); everything else
- * (commission, dates, avatars) is ignored. Falls back to simple "name, amount"
- * lines when there are no "Wagered" labels at all.
+ * Reads text copied from SolPump's affiliate page, in whatever layout the copy
+ * produced: labels and values on separate lines, on one line, tab-separated or
+ * flattened. Each player card is a name followed by "Wagered <amount>";
+ * commission, dates, avatars and ticks are ignored, and so are page totals
+ * above the first card.
+ * Falls back to strict "name, amount" lines when there are no "Wagered" labels.
  */
-export function parseAffiliatePaste(text: string): AffiliateParse {
-  const lines = text
-    .replace(/^﻿/, "")
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const found: { line: number; name: string; amount: string }[] = [];
+export function parseAffiliatePaste(raw: string): AffiliateParse {
+  const text = raw.replace(/^﻿/, "").replace(/\r\n?/g, "\n").replace(/[  -​ ]/g, " ");
   const errors: string[] = [];
+  const warnings: string[] = [];
+  // A CSV-style header ("username, wagered") isn't a player card.
+  const firstLine = text.trimStart().split("\n")[0];
+  const headerEnd = /[,;\t]/.test(firstLine) && !/\d/.test(firstLine) ? text.indexOf(firstLine) + firstLine.length : 0;
+  const labels = [...text.matchAll(WAGERED)].filter((m) => m.index >= headerEnd);
+  let found: Found[];
 
-  let lastName: { text: string; line: number } | null = null;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const labelled = /^(?:(.*?)\s+)?wagered\s*:?\s*(.*)$/i.exec(line);
-    if (labelled) {
-      const name = labelled[1]?.trim() ? labelled[1] : lastName?.text;
-      let amount = labelled[2].trim();
-      if (!amount && i + 1 < lines.length && NUMBER.test(lines[i + 1])) amount = lines[++i];
-      if (!name) errors.push(`Line ${i + 1}: found "Wagered" with no player name before it.`);
-      else found.push({ line: i + 1, name, amount });
-      lastName = null;
-      continue;
-    }
-    if (!NUMBER.test(line) && !DATE.test(line) && !LABEL.test(line)) lastName = { text: line, line: i + 1 };
-  }
-
-  if (found.length === 0) {
-    for (let i = 0; i < lines.length; i++) {
-      const plain = /^(.+?)(?:\s*[,;\t]\s*|\s{2,})([◎$]?\s*[\d,]*\.?\d+)\s*(sol)?$/i.exec(lines[i]);
+  if (labels.length) {
+    const cards: (Found & { card: boolean })[] = [];
+    let cursor = 0;
+    labels.forEach((m, k) => {
+      const end = m.index + m[0].length;
+      const nextStart = labels[k + 1]?.index ?? text.length;
+      const amount = AMOUNT_AFTER.exec(text.slice(end, nextStart));
+      const afterAmount = amount ? end + amount[0].length : end;
+      cards.push({
+        line: lineAt(text, m.index),
+        name: nameBefore(text.slice(cursor, m.index)),
+        amount: amount?.[1] ?? "",
+        card: CARD_MARKER.test(text.slice(afterAmount, nextStart)),
+      });
+      cursor = afterAmount;
+    });
+    // Page totals ("Total Wagered ...") sit above the list; anything after the
+    // first card counts, even a last card cut off before its commission.
+    const firstCard = cards.findIndex((c) => c.card);
+    const header = firstCard > 0 ? cards.slice(0, firstCard) : [];
+    for (const c of header) warnings.push(`Line ${c.line}: skipped "${c.name ? `${c.name} ` : ""}Wagered" text above the player list.`);
+    found = cards.slice(header.length);
+    for (const c of found) if (!c.name) errors.push(`Line ${c.line}: found "Wagered" with no player name before it.`);
+    found = found.filter((c) => c.name);
+  } else {
+    // Simple list: every non-empty line must be "name, amount" (a first line
+    // without any digits is treated as a header).
+    found = [];
+    const lines = text.split("\n").map((l) => l.trim());
+    let seenContent = false;
+    lines.forEach((line, i) => {
+      if (!line) return;
+      const plain = /^(.+?)(?:\s*[,;\t]\s*|\s{2,})([◎$]?\s*[\d,]*\.?\d+)\s*(sol)?$/i.exec(line);
       if (plain) found.push({ line: i + 1, name: plain[1], amount: plain[2] });
-    }
+      else if (!seenContent && !/\d/.test(line)) {
+        // header
+      } else errors.push(`Line ${i + 1}: expected "name, amount" but got "${line.slice(0, 40)}".`);
+      seenContent = true;
+    });
   }
 
   const byKey = new Map<string, AffiliateRow>();
-  const warnings: string[] = [];
   for (const { line, name, amount } of found) {
     const username = cleanName(name);
     const lifetimeSol = parseAmount(amount);
@@ -94,13 +139,15 @@ export function parseAffiliatePaste(text: string): AffiliateParse {
   return { rows, warnings, errors };
 }
 
-export type SnapshotRef = { id: string; takenAt: Date };
+/** `createdAt` orders copies that share a `takenAt` (the later save wins). */
+export type SnapshotRef = { id: string; takenAt: Date; createdAt?: Date };
 export type PeriodWindow = { startsAt: Date; endsAt: Date };
 
 /**
  * Which snapshots to compare for a period: the latest one taken before the
- * period ended (plus grace), against the one taken closest to its start.
- * Returns nulls when there's nothing to compare yet.
+ * period ended (plus grace), against the one taken closest to its start among
+ * copies strictly older than that latest one. Returns nulls when there's
+ * nothing to compare yet.
  */
 export function pickSnapshots<T extends SnapshotRef>(
   snapshots: T[],
@@ -108,14 +155,18 @@ export function pickSnapshots<T extends SnapshotRef>(
 ): { latest: T | null; baseline: T | null; baselineOffMs: number | null } {
   const endLimit = period.endsAt.getTime() + BOUNDARY_GRACE_MS;
   const start = period.startsAt.getTime();
-  const sorted = [...snapshots].sort((a, b) => a.takenAt.getTime() - b.takenAt.getTime());
+  const sorted = [...snapshots].sort(
+    (a, b) => a.takenAt.getTime() - b.takenAt.getTime() || (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0),
+  );
   const usable = sorted.filter((s) => s.takenAt.getTime() <= endLimit);
   const latest = usable.at(-1) ?? null;
   if (!latest || latest.takenAt.getTime() < start - BOUNDARY_GRACE_MS) return { latest: null, baseline: null, baselineOffMs: null };
 
+  // A copy with the same time as the latest one is the same moment, so it
+  // can't serve as the starting point (it would zero every total).
   let baseline: T | null = null;
   for (const s of usable) {
-    if (s === latest) break;
+    if (s.takenAt.getTime() >= latest.takenAt.getTime()) break;
     if (!baseline || Math.abs(s.takenAt.getTime() - start) < Math.abs(baseline.takenAt.getTime() - start)) baseline = s;
   }
   return { latest, baseline, baselineOffMs: baseline ? baseline.takenAt.getTime() - start : null };

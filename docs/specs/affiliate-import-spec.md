@@ -15,9 +15,17 @@ User request: show on the leaderboard that Blackjack counts 20% of wager and Cra
 Context: SolPump's affiliate page lists each referral's **all-time** wagered total (name, "Wagered", amount, commission, first/last seen). Periods run weekly, Sunday 5 PM Eastern. The user asked for a paste import with lifetime snapshots and weekly baselines. Scraping SolPump or calling private endpoints is forbidden (original brief); the admin copies the visible page by hand.
 
 Requirements:
-- **Parsing** (`src/lib/affiliate.ts`, pure).
-  - Reads a pasted page copy: a name line followed by `Wagered` plus an amount, on the same line or the next. Commission, dates, avatar text and verified ticks are ignored or stripped.
-  - Falls back to `name, amount` / tab / 2+ space lines only when no `Wagered` label exists.
+- **Parsing** (`src/lib/affiliate.ts`, pure). Revised after inspection 7, at the user's request to accept *any* text copied from the affiliate page.
+  - **Card layout.** Each card is a name followed by a standalone `Wagered` word and the first amount after it. This works whether the copy puts labels and values on separate lines, on one line, in tab-separated columns, or flattens everything onto one line.
+  - **Finding the name.** The name is what remains between the previous card and `Wagered`, after removing:
+    - dates and times
+    - the `Comission`/`Generated`/`First Seen`/`Last Seen` labels
+    - standalone numbers (digits inside names like `Mario4k` stay)
+    - verified ticks
+
+    If more than one line remains (for example avatar alt text), the last line is the name. An all-digit name alone on its own line before `Wagered` is kept.
+  - **Page totals.** `Wagered` text that appears before the first real card (one followed by `Generated`/`First Seen`/`Last Seen`) is page-total text. It's skipped with a warning. Anything after the first card counts, including a last card cut off early.
+  - **Simple lists.** With no `Wagered` card labels, it falls back to a strict `name, amount` / tab / 2+ space list. **Every** non-empty line must parse, or the paste is rejected. Only a first line that has delimiters but no digits is treated as a header.
   - Usernames are 1–64 characters with control characters removed. Amounts are finite, 0 to 1e9, and thousands separators are allowed.
   - The same name twice keeps the larger total, with a warning if they differ. Unreadable rows are errors, and any error blocks saving. Max 10,000 players.
 - **Storage.**
@@ -25,7 +33,8 @@ Requirements:
   - Postgres migration `0004_affiliate_snapshots`. SQLite stays on `db push`.
 - **Weekly math.**
   - For a period: `latest` = newest snapshot with `takenAt <= endsAt + 1h`. If that is before `startsAt - 1h`, the period has no data.
-  - `baseline` = the snapshot taken before `latest` that is closest to `startsAt`, on either side.
+  - `baseline` = the snapshot with `takenAt` strictly earlier than `latest.takenAt` that is closest to `startsAt`, on either side. Copies sharing a `takenAt` are ordered by `createdAt`, so the later save is `latest`.
+  - Copies before the start are not limited by age: the newest copy before `startsAt` is always a candidate (inspection 7 R2).
   - Each player's wager = latest − baseline, computed in lamports.
   - Players absent from the baseline count in full; zero rows are dropped; negative differences count as 0 with a warning.
   - Warn when baseline players are missing from the latest copy (incomplete paste), and when the baseline is more than 1h from `startsAt`.
