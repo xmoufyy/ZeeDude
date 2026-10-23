@@ -239,3 +239,18 @@ Status: 3 open. Review only (no implementation authorized by this command).
 - R2: `computePeriod` loads the copies from the period start onward plus the newest copy before the start, with no age cutoff.
 - R3: `pickSnapshots` only takes a baseline strictly older than `latest`, and breaks equal `takenAt` ties by `createdAt` (so the later save wins).
 - Proofs: `npm test` 121/121 (new tests: tab, flattened, page-total, all-digit-name, strict-list and same-time cases). tsc and eslint clean. `verify:concurrency` 8/8; the affiliate scenario now also re-saves at the same copy time (expects 51, not 1) and uses a 45-day-old baseline (expects 2.5, not an untouched board).
+
+## Inspection 8: fresh Codex session, verdict REVISE (user-authorized extra round, now used)
+
+- Result: `scratchpad/claudex/inspect8/claudex-d8u8rqfj/result.json`. Session `01a16771-6432-7ea1-8e18-54e8b5a92717`, 69s. Snapshot `5ec3ae7`, base `0a78e1c`. Postgres verification on `5ec3ae7`: all checks passed (drift clean, 8/8 scenarios, HTTP checks).
+- Inspection 7's R1–R3 are not re-raised. The new findings are edge cases in the rebuilt parser and in the snapshot selection.
+
+| ID | Sev | Finding | Host position |
+|---|---|---|---|
+| R1 | high | Label words inside names are treated as labels: `RegeneratedKing` imports as `King` | **Valid.** Fix: match labels only as standalone words; test names containing label words |
+| R2 | high | `Bob nope\nAlice, 100` skips the bad first line as a "header" (no delimiter), contrary to the contract | **Valid.** Fix: a header needs a delimiter and no digits, else it's an error |
+| R3 | medium | `Wagered 1e10` reads as 1 (only the numeric prefix is taken), bypassing the max check | **Valid.** Fix: the amount must be a complete token; reject malformed suffixes |
+| R4 | medium | Copies sharing a `takenAt` at the *baseline* time: the original wins over its later correction | **Valid.** Fix: collapse same-`takenAt` copies to the latest saved before selecting latest and baseline; test it |
+| R5 | medium | Only one pre-start copy is loaded: if the newest copy is 30 min before the start (so it becomes `latest`), the older baseline isn't loaded and the period is left untouched | **Valid.** Fix: also load the newest copy strictly older than that one; test it |
+
+Status: 5 open. The authorized inspection budget is used.
