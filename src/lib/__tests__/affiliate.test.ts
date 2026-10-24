@@ -26,6 +26,24 @@ Last Seen
 `;
 
 describe("parseAffiliatePaste", () => {
+  it("rejects extra number columns and decimal commas instead of importing commission or a larger total", () => {
+    for (const text of ["Alice, 1.5, 0.3", "Alice\t1.5\t0.3", "Alice  1.5  0.3"]) {
+      expect(parseAffiliatePaste(text).errors[0], text).toMatch(/more than one number/);
+    }
+    expect(parseAffiliatePaste("Alice; 1,5").errors[0]).toMatch(/amount for Alice/);
+    expect(parseAffiliatePaste("Alice\nWagered 1,5\nGenerated 0.1").errors[0]).toMatch(/amount for Alice/);
+    expect(parseAffiliatePaste("Agent 47  1.5").rows).toEqual([{ username: "Agent 47", lifetimeSol: 1.5 }]);
+  });
+  it("rejects a malformed first row instead of mistaking it for a header", () => {
+    expect(parseAffiliatePaste("Bob, nope\nAlice, 100").errors[0]).toMatch(/Line 1/);
+  });
+
+  it("does not discard a player just because a later card has metadata", () => {
+    expect(parseAffiliatePaste("Alice Wagered 10\nBob Wagered 20 Generated 1").rows).toEqual([
+      { username: "Alice", lifetimeSol: 10 },
+      { username: "Bob", lifetimeSol: 20 },
+    ]);
+  });
   it("reads names and wagered totals from a page copy, ignoring commission and dates", () => {
     expect(parseAffiliatePaste(PAGE_COPY)).toEqual({
       rows: [

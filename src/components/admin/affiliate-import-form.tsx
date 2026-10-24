@@ -1,23 +1,36 @@
 "use client";
 
-import { useActionState } from "react";
+import { useEffect, useRef } from "react";
 import { affiliateImportAction, type AffiliatePeriodPreview } from "@/app/admin/actions";
 import { ResultMessage } from "@/components/admin/action-form";
+import { useFormAction } from "@/components/use-form-action";
 import { formatPeriodDate } from "@/lib/period";
 import { formatSol } from "@/lib/sol";
 
 /** Paste box for SolPump's affiliate list, with a preview before saving. */
 export function AffiliateImportForm() {
-  const [state, formAction, pending] = useActionState(affiliateImportAction, null);
+  const { state, dispatch, pending, submit } = useFormAction(affiliateImportAction, null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const lastIntent = useRef<string | null>(null);
+
+  // Keep the paste and copy time after a preview (or an error) so the same
+  // copy can be saved; clear them once it's saved, so it isn't saved twice.
+  useEffect(() => {
+    if (state?.ok && lastIntent.current === "save") formRef.current?.reset();
+  }, [state]);
 
   return (
     <form
-      action={formAction}
+      ref={formRef}
+      action={dispatch}
       onSubmit={(e) => {
-        const intent = (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value");
+        const intent = (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") ?? null;
         if (intent === "save" && !window.confirm("Save this copy? Open leaderboards it affects will be recalculated from SolPump totals, replacing their current rows.")) {
           e.preventDefault();
+          return;
         }
+        lastIntent.current = intent;
+        submit(e);
       }}
       className="space-y-4"
     >

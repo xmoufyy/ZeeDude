@@ -9,7 +9,7 @@
 //   node --conditions=react-server --import tsx scripts/verify-concurrency.ts
 
 import { finalizePeriod, reopenPeriod, setPayoutPaid, snapshotPeriod } from "../src/lib/admin-ops";
-import { deleteAffiliateSnapshot, previewAffiliateSnapshot, saveAffiliateSnapshot } from "../src/lib/affiliate-import";
+import { deleteAffiliateSnapshot, previewAffiliateSnapshot, retainedAffiliateWarning, saveAffiliateSnapshot } from "../src/lib/affiliate-import";
 import { db } from "../src/lib/db";
 import { MAX_FAILURES_PER_IP, reserveLoginAttempt } from "../src/lib/login-limiter";
 import { weeklyWindow } from "../src/lib/period";
@@ -215,6 +215,8 @@ const checks: Check[] = [
       let got = JSON.stringify(await board());
       if (got !== JSON.stringify({ Alice: 30.5, Cara: 2 }) && got !== JSON.stringify({ Cara: 2, Alice: 30.5 })) return `after 2nd copy: ${got}`;
       if (second[0]?.rows.length !== 2) return "save didn't report the period's rows";
+      const updatedAt = async () => (await db.period.findUniqueOrThrow({ where: { id: period.id } })).dataUpdatedAt?.getTime();
+      if (await updatedAt() !== at(DAY).getTime()) return "old wager copy was presented as freshly collected data";
 
       const before = got;
       await previewAffiliateSnapshot([{ username: "Alice", lifetimeSol: 999 }], at(DAY + 60_000));
@@ -234,6 +236,7 @@ const checks: Check[] = [
       const expected = 40 + times.indexOf(secondLatest);
       got = JSON.stringify(await board());
       if (got !== JSON.stringify({ Alice: expected })) return `after delete: ${got}, expected Alice ${expected}`;
+      if (await updatedAt() !== secondLatest.getTime()) return "deleting the latest copy did not restore the earlier reading time";
 
       // Re-saving at the same copy time never compares a copy with itself.
       const sameTime = at(DAY + 9 * 60 * 60_000);
@@ -263,6 +266,36 @@ const checks: Check[] = [
       if ((await eveBoard()).length) return `boundary copy counted last week's bets (${JSON.stringify(await eveBoard())})`;
       await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 15.5 }], new Date(sunday.startsAt.getTime() + DAY));
       if (JSON.stringify(await eveBoard()) !== "[1.5]") return `mid-week copy after the boundary: ${JSON.stringify(await eveBoard())}, expected [1.5]`;
+
+      // The user chose to retain totals when a required copy is deleted,
+      // with a persistent public warning until a usable pair exists again.
+      const midweek = await db.affiliateSnapshot.findFirstOrThrow({ orderBy: { takenAt: "desc" } });
+      const retainedAt = (await db.period.findUniqueOrThrow({ where: { id: sunday.id } })).dataUpdatedAt?.getTime();
+      const deleted = await deleteAffiliateSnapshot(midweek.id);
+      if (JSON.stringify(await eveBoard()) !== "[1.5]") return "deleting the last usable reading changed the retained totals";
+      if (!deleted.some((o) => o.warnings.some((w) => w.includes("Previous totals are retained")))) return "delete didn't report retained data";
+      if (!await retainedAffiliateWarning(sunday)) return "retained totals have no public warning";
+      if ((await db.period.findUniqueOrThrow({ where: { id: sunday.id } })).dataUpdatedAt?.getTime() !== retainedAt) return "retaining totals changed their reading time";
+      await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 16 }], new Date(sunday.startsAt.getTime() + DAY));
+      if (await retainedAffiliateWarning(sunday)) return "a usable replacement didn't clear the retained warning";
+      if (JSON.stringify(await eveBoard()) !== "[2]") return "replacement copy didn't recalculate retained totals";
+      const startingCopies = await db.affiliateSnapshot.findMany({ where: { takenAt: { lt: midweek.takenAt } }, orderBy: { takenAt: "asc" } });
+      // Remove the older fallback first, then the boundary baseline. Deleting
+      // just one baseline may legitimately select an even older usable copy.
+      for (const copy of startingCopies) await deleteAffiliateSnapshot(copy.id);
+      if (!await retainedAffiliateWarning(sunday) || JSON.stringify(await eveBoard()) !== "[2]") return "deleting the last baseline didn't retain totals with a warning";
+      await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 14 }], new Date(sunday.startsAt.getTime() + 2 * 60_000));
+      if (await retainedAffiliateWarning(sunday)) return "restoring the baseline didn't clear the warning";
+
+      await finalizePeriod(sunday.id);
+      const locked = async () => JSON.stringify({
+        board: await eveBoard(),
+        payouts: await db.payout.findMany({ where: { periodId: sunday.id } }),
+        finals: await db.snapshot.findMany({ where: { periodId: sunday.id, isFinal: true } }),
+      });
+      const finalBefore = await locked();
+      await saveAffiliateSnapshot([{ username: "Eve", lifetimeSol: 100 }], new Date(sunday.startsAt.getTime() + DAY + 60 * 60_000));
+      if (await locked() !== finalBefore) return "an unrelated affiliate import changed finalized results or payouts";
       return null;
     },
   },
@@ -292,12 +325,19 @@ async function main() {
       try {
         // A run that never settles (e.g. a stalled database connection) fails
         // the check instead of hanging the verifier forever.
-        const problem = await Promise.race([
-          check.run(),
-          new Promise<string>((resolve) => setTimeout(() => resolve(`timed out after ${RUN_TIMEOUT_MS / 1000}s`), RUN_TIMEOUT_MS).unref()),
-        ]);
+        const timer = setTimeout(() => {
+          console.error(`FAIL  ${check.name}: run ${i} timed out after ${RUN_TIMEOUT_MS / 1000}s; aborting without database cleanup`);
+          // Promise.race cannot cancel database work. Exit the process so no
+          // later scenario or cleanup can overlap the stalled operation.
+          process.exit(1);
+        }, RUN_TIMEOUT_MS);
+        let problem;
+        try {
+          problem = await check.run();
+        } finally {
+          clearTimeout(timer);
+        }
         if (problem) problems.push(`run ${i}: ${problem}`);
-        if (problem?.startsWith("timed out")) break; // later runs would hit the same stall
       } catch (error) {
         problems.push(`run ${i}: threw ${error instanceof Error ? error.message : String(error)}`);
       }

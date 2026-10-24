@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { saveProfileAction, type ProfileResult } from "@/app/profile/actions";
+import { useFormAction } from "@/components/use-form-action";
 
 type Props = {
   wallet: string;
@@ -49,15 +50,24 @@ function Field({
 }
 
 export function ProfileForm({ wallet, values, claimStatus }: Props) {
-  const [state, formAction, pending] = useActionState<ProfileResult, FormData>(saveProfileAction, null);
+  const { state, dispatch, pending, submit } = useFormAction<ProfileResult>(saveProfileAction, null);
   const [hideName, setHideName] = useState(values.hideName);
+  const formRef = useRef<HTMLFormElement>(null);
   const toggleRef = useRef<HTMLInputElement>(null);
   const status = STATUS[claimStatus];
   const input = "input py-2.5 text-base";
 
+  // After a save, show the stored values (e.g. "@Name" saved as "name"); after
+  // an error, keep what the player typed so they can fix it.
+  useEffect(() => {
+    if (state?.ok) formRef.current?.reset();
+  }, [state]);
+
   return (
     <form
-      action={formAction}
+      ref={formRef}
+      action={dispatch}
+      onSubmit={submit}
       // The reset event fires before fields are restored, so read the switch afterwards.
       onReset={() => setTimeout(() => setHideName(toggleRef.current?.checked ?? values.hideName))}
       className="space-y-5"
@@ -115,7 +125,7 @@ export function ProfileForm({ wallet, values, claimStatus }: Props) {
           </p>
         </div>
         <label className="relative inline-flex shrink-0 cursor-pointer items-center">
-          {/* Uncontrolled: React resets the form after a successful save, and a
+          {/* Uncontrolled: the form is reset after a successful save, and a
               reset must restore the saved value (defaultChecked), not the first render's. */}
           <input
             ref={toggleRef}

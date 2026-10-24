@@ -30,6 +30,14 @@ describe("parseAmount", () => {
     expect(parseAmount("")).toBeUndefined();
     expect(parseAmount("abc")).toBeNaN();
   });
+
+  it("only accepts commas as thousands separators, so a decimal comma isn't read 10x too big", () => {
+    expect(parseAmount("1,234,567.89")).toBe(1234567.89);
+    expect(parseAmount("1,5")).toBeNaN();
+    expect(parseAmount("12,50")).toBeNaN();
+    expect(parseAmount("1,2345")).toBeNaN();
+    expect(parseWagerFile("username;wagered\nAlice;1,5", "csv")).toEqual({ ok: false, errors: [expect.stringMatching(/Line 2: wagered SOL is not a number/)] });
+  });
 });
 
 describe("parseWagerFile (CSV)", () => {

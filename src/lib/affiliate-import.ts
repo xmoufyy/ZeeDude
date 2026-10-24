@@ -30,6 +30,7 @@ type PendingSnapshot = { ref: SnapshotRef; rows: AffiliateRow[] };
 
 const NEW_ID = "(this paste)";
 const HOUR = 60 * 60 * 1000;
+const RETAINED_WARNING = "A snapshot needed to calculate this race is unavailable. Previous totals are retained; waiting for a usable import.";
 
 /**
  * Open periods whose numbers a snapshot taken at `takenAt` can change: any
@@ -46,8 +47,8 @@ async function readings(client: DbClient, snapshotId: string): Promise<Affiliate
   return client.affiliateReading.findMany({ where: { snapshotId }, select: { username: true, lifetimeSol: true } });
 }
 
-/** Works out a period's wagers from the stored snapshots, plus `pending` if it isn't saved yet. */
-async function computePeriod(client: DbClient, period: Period, pending?: PendingSnapshot): Promise<PeriodOutcome> {
+/** Shared selection for recalculation and for the retained-data warning. */
+async function periodSnapshots(client: DbClient, period: Period, pending?: PendingSnapshot) {
   // Every copy from the period's start onward, plus the two newest distinct
   // copy times before it, however old. The newest is the closest "before"
   // candidate; when it's also the latest copy (taken just before the start),
@@ -69,7 +70,24 @@ async function computePeriod(client: DbClient, period: Period, pending?: Pending
   const beforeThat = before ? await newestBefore(before.takenAt) : null;
   const refs: SnapshotRef[] = [beforeThat, before, ...inPeriod].filter((s) => s !== null);
   if (pending) refs.push(pending.ref);
-  const { latest, baseline, baselineOffMs } = pickSnapshots(refs, period);
+  return pickSnapshots(refs, period);
+}
+
+/** Warn whenever affiliate-derived rows survive without a usable snapshot pair. */
+export async function retainedAffiliateWarning(period: Period, client: DbClient = db): Promise<string | null> {
+  const entry = await affiliateEntry(client, period.id);
+  if (!entry) return null;
+  const { latest, baseline } = await periodSnapshots(client, period);
+  return latest && baseline ? null : RETAINED_WARNING;
+}
+
+function affiliateEntry(client: DbClient, periodId: string) {
+  return client.wagerEntry.findFirst({ where: { periodId, source: "affiliate" }, select: { id: true } });
+}
+
+/** Works out a period's wagers from the stored snapshots, plus `pending` if it isn't saved yet. */
+async function computePeriod(client: DbClient, period: Period, pending?: PendingSnapshot): Promise<PeriodOutcome> {
+  const { latest, baseline, baselineOffMs } = await periodSnapshots(client, period, pending);
   const outcome: PeriodOutcome = {
     periodId: period.id,
     periodName: period.name,
@@ -108,6 +126,9 @@ async function apply(tx: Tx, outcomes: PeriodOutcome[]) {
       "replace",
       "affiliate",
     );
+    // Freshness describes the wager reading, not when an old copy was saved
+    // or recalculated (including after deleting a newer copy).
+    await tx.period.update({ where: { id: o.periodId }, data: { dataUpdatedAt: o.latestAt } });
   }
 }
 
@@ -157,7 +178,11 @@ export async function deleteAffiliateSnapshot(snapshotId: string): Promise<Perio
       const outcomes = [];
       for (const p of await affectedPeriods(tx, snapshot.takenAt)) outcomes.push(await computePeriod(tx, p));
       await apply(tx, outcomes);
-      return outcomes.filter((o) => o.latestAt);
+      for (const outcome of outcomes) {
+        if (outcome.baselineAt) continue;
+        if (await affiliateEntry(tx, outcome.periodId)) outcome.warnings.push(RETAINED_WARNING);
+      }
+      return outcomes.filter((o) => o.latestAt || o.warnings.length);
     },
     { timeoutMs: 60_000 },
   );

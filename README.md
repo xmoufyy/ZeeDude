@@ -141,7 +141,7 @@ The admin dashboard's **Refresh now** button runs the same steps. In manual mode
    ```bash
    npm run admin:password -- "your strong password" --print
    ```
-4. Deploy. The cron in `vercel.json` calls `/api/cron/refresh` once a day (22:05 UTC, just after the Sunday 5 PM ET week boundary) and sends `CRON_SECRET` automatically; that's all the Hobby plan allows, and enough with manual imports since saving a SolPump copy also creates the current week. On Pro you can make it more frequent. For more frequent refreshes on Hobby, use an external scheduler (cron-job.org, GitHub Actions) that sends the header:
+4. Deploy. The cron in `vercel.json` calls `/api/cron/refresh` once a day at 22:05 UTC (6:05 PM EDT or 5:05 PM EST on Sundays, respectively 65 or 5 minutes after the weekly boundary) and sends `CRON_SECRET` automatically; that's all the Hobby plan allows, and enough with manual imports since saving a SolPump copy also creates the current week. The cron does not collect SolPump totals or finalize races; save the Sunday boundary copy manually. On Pro you can make it more frequent. For more frequent refreshes on Hobby, use an external scheduler (cron-job.org, GitHub Actions) that sends the header:
    ```bash
    curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://your-site/api/cron/refresh
    ```

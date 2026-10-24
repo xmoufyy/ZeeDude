@@ -1,4 +1,5 @@
 import { cacheLife, cacheTag } from "next/cache";
+import { retainedAffiliateWarning } from "./affiliate-import";
 import { db } from "./db";
 import type { SourceStatus } from "./freshness";
 import { maskUsername } from "./mask";
@@ -40,6 +41,8 @@ export type LeaderboardView = {
   totalWageredSol: number;
   playerCount: number;
   dataUpdatedAt: string | null;
+  /** Open race totals retained after a required affiliate snapshot was deleted. */
+  dataWarning?: string | null;
   masked: boolean;
   /** Health of the automatic data source, for the "may be delayed" notice. */
   source: SourceStatus;
@@ -134,6 +137,7 @@ async function buildView(period: PeriodRecord): Promise<LeaderboardView> {
     totalWageredSol: ranked.reduce((sum, r) => sum + r.wageredSol, 0),
     playerCount: ranked.length,
     dataUpdatedAt: period.dataUpdatedAt?.toISOString() ?? null,
+    dataWarning: period.finalizedAt ? null : await retainedAffiliateWarning(period),
     masked,
     source,
   };

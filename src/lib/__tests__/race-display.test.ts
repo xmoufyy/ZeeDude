@@ -20,6 +20,12 @@ describe("Podium", () => {
     expect(html).toMatch(/Up for grabs 1\.2 SOL/);
   });
 
+  it("doesn't show a wager for an open spot as if someone wagered 0", () => {
+    const html = text(renderToStaticMarkup(createElement(Podium, { rows: [leader], placePrizes: prizes })));
+    expect(html).not.toMatch(/Wagered 0 SOL/);
+    expect(html).toMatch(/Wagered — /);
+  });
+
   it("shows 0 for an empty place on a finished race", () => {
     const html = text(renderToStaticMarkup(createElement(Podium, { rows: [leader] })));
     expect(html).not.toContain("Up for grabs");

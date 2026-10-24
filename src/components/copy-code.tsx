@@ -4,19 +4,22 @@ import { useState } from "react";
 
 export function CopyCode({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function copy() {
+    setCopied(false);
+    setFailed(false);
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard can be blocked (e.g. insecure context); the code is still visible to copy by hand.
+      setFailed(true);
     }
   }
 
   return (
-    <div className="flex items-stretch overflow-hidden rounded-2xl border-2 border-dashed border-gold/60 bg-ink/60">
+    <div className="flex flex-wrap items-stretch overflow-hidden rounded-2xl border-2 border-dashed border-gold/60 bg-ink/60">
       <span className="flex flex-1 items-center px-4 py-3 font-display text-2xl tracking-wider text-gold-gradient sm:text-3xl">
         {code}
       </span>
@@ -30,6 +33,7 @@ export function CopyCode({ code }: { code: string }) {
       <span className="sr-only" aria-live="polite">
         {copied ? "Referral code copied to clipboard" : ""}
       </span>
+      {failed && <p role="status" className="basis-full px-4 pb-3 text-xs text-gold">Copy was blocked. Select the code above and copy it manually.</p>}
     </div>
   );
 }

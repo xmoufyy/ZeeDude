@@ -38,9 +38,13 @@ function findColumns(headers: string[]): Partial<Record<Column, number>> {
 export function parseAmount(raw: unknown): number | undefined {
   if (typeof raw === "number") return raw;
   if (typeof raw !== "string") return raw == null ? undefined : Number.NaN;
-  const cleaned = raw.replace(/sol|usd|[◎$,\s]/gi, "");
+  const cleaned = raw.replace(/sol|usd|[◎$\s]/gi, "");
   if (cleaned === "") return undefined;
-  return /^-?\d*\.?\d+(e[+-]?\d+)?$/i.test(cleaned) ? Number(cleaned) : Number.NaN;
+  // Commas only count as thousands separators ("1,234.5"). In "1,5" the comma is
+  // a decimal comma, and reading it as 15 would be a silent 10x error.
+  if (cleaned.includes(",") && !/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(cleaned)) return Number.NaN;
+  const plain = cleaned.replace(/,/g, "");
+  return /^-?\d*\.?\d+(e[+-]?\d+)?$/i.test(plain) ? Number(plain) : Number.NaN;
 }
 
 const rowSchema = z.object({

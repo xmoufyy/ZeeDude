@@ -76,8 +76,14 @@ export function Podium({ rows, placePrizes }: { rows: LeaderboardRow[]; placePri
               </h3>
               <p className="mt-2 text-[0.65rem] font-semibold tracking-widest text-muted uppercase sm:text-xs">Wagered</p>
               <p className="font-display text-sm text-text sm:text-xl">
-                {row ? <CountUp value={row.wageredSol} delayMs={place.delay + 300} decimals={2} /> : "0"}
-                <span className="ml-1 font-sans text-[0.65rem] font-semibold text-muted sm:text-xs">SOL</span>
+                {row ? (
+                  <>
+                    <CountUp value={row.wageredSol} delayMs={place.delay + 300} decimals={2} />
+                    <span className="ml-1 font-sans text-[0.65rem] font-semibold text-muted sm:text-xs">SOL</span>
+                  </>
+                ) : (
+                  <span aria-label="Nobody yet">—</span>
+                )}
               </p>
               <GapNote gapSol={row?.gapSol} gapRank={row?.gapRank} className="mt-0.5 hidden sm:block" />
               <div className={`mt-3 w-full rounded-xl border border-current/30 bg-current/5 px-2 py-1.5 sm:py-2 ${place.text}`}>

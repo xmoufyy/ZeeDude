@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useEffect, useRef } from "react";
 import type { ActionResult } from "@/app/admin/actions";
+import { useFormAction } from "@/components/use-form-action";
 
 type Action = (prev: ActionResult, form: FormData) => Promise<ActionResult>;
 
@@ -29,14 +30,22 @@ export function ActionForm({
   className = "",
   inline = false,
 }: Props) {
-  const [state, formAction, pending] = useActionState(action, null);
+  const { state, dispatch, pending, submit } = useFormAction(action, null);
+  const formRef = useRef<HTMLFormElement>(null);
   const buttonClass = variant === "primary" ? "btn btn-primary" : variant === "danger" ? "btn btn-danger" : "btn";
+
+  // Clear the fields only after a success; after an error the admin's input stays put.
+  useEffect(() => {
+    if (state?.ok) formRef.current?.reset();
+  }, [state]);
 
   return (
     <form
-      action={formAction}
+      ref={formRef}
+      action={dispatch}
       onSubmit={(e) => {
         if (confirm && !window.confirm(confirm)) e.preventDefault();
+        else submit(e);
       }}
       className={className}
     >

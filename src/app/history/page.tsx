@@ -75,6 +75,7 @@ async function PastBoard({ searchParams }: Pick<PageProps<"/history">, "searchPa
 
       <section aria-labelledby="past-heading" className="min-w-0 space-y-8">
         {fallback && <DelayedNotice freshness={{ delayed: true, reason: "database", since: fallback.savedAt }} />}
+        {board.dataWarning && <p role="status" className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm text-gold">{board.dataWarning}</p>}
         <div>
           <h2 id="past-heading" className="font-display text-2xl">
             {period.name}

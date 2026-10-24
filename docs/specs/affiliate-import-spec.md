@@ -20,10 +20,10 @@ Requirements:
   - **Finding the name** (revised after inspection 9 R2). The text before `Wagered` is cut after the previous card's last date/time or `Comission`/`Generated`/`First Seen`/`Last Seen` label. The last non-empty line of what's left is the name, with verified ticks stripped.
     - That line is kept whole when it's on its own line, so `Agent 47 Smith` and `Mario4k` stay intact. A line that is only a decimal amount (a leftover commission) isn't a name.
     - On the same line as the previous card's end (a flattened copy), only *leading* amounts are stripped, since they are that card's commission. An all-digit name alone there is kept.
-  - **Page totals.** `Wagered` text that appears before the first real card (one followed by `Generated`/`First Seen`/`Last Seen`) is page-total text. It's skipped with a warning. Anything after the first card counts, including a last card cut off early.
+  - **Page totals.** Before the first card with metadata (`Generated`/`First Seen`/`Last Seen`), only recognized page-total names (`Total`, `Total Wager(s)`, `All-time`) may be skipped, with a warning. A player without metadata must not be discarded just because a later card has metadata.
   - **Whole words only.** Labels and numbers count only as whole words, so names containing label words (`RegeneratedKing`) stay intact (inspection 8 R1).
   - **Amounts.** The amount after `Wagered` must be a complete number token. Something like `1e10` or `5.5.5` is an error, not truncated (inspection 8 R3).
-  - **Simple lists.** With no `Wagered` card labels, it falls back to a strict `name, amount` / tab / 2+ space list. **Every** non-empty line must parse, or the paste is rejected. Only a first line that has a delimiter (`,` `;` or tab) and no digits is treated as a header (inspection 8 R2). On card copies, only a recognised list header (starting with a name column such as `username`/`name`/`player`, then a delimiter, no digits) hides a `Wagered` label, so a card line like `Alice<TAB>Wagered` still counts (inspection 9 R1).
+  - **Simple lists.** With no `Wagered` card labels, it falls back to a strict `name, amount` / tab / 2+ space list. **Every** non-empty line must parse, or the paste is rejected. Only recognized name and amount column headings are treated as a simple-list header. Multiple numeric columns are rejected to avoid importing a commission as wager total. On card copies, a recognized list header hides a `Wagered` label, so a card line like `Alice<TAB>Wagered` still counts (inspection 9 R1). Commas must form valid thousands groups; ambiguous decimal commas are rejected.
   - Usernames are 1–64 characters with control characters removed. Amounts are finite, 0 to 1e9, and thousands separators are allowed.
   - The same name twice keeps the larger total, with a warning if they differ. Unreadable rows are errors, and any error blocks saving. Max 10,000 players.
 - **Storage.**
@@ -37,7 +37,7 @@ Requirements:
   - Each player's wager = latest − baseline, computed in lamports.
   - Players absent from the baseline count in full; zero rows are dropped; negative differences count as 0 with a warning.
   - Warn when baseline players are missing from the latest copy (incomplete paste), and when the baseline is more than 1h from `startsAt`.
-  - With no baseline (only one usable copy), the period's leaderboard is **left untouched**.
+  - With no baseline (only one usable copy), the period's leaderboard is **left untouched**. User decision on 2026-10-24: if deleting a required copy leaves affiliate-derived totals on an open race, retain those totals and their reading time with a persistent public warning. Clear the warning when a usable snapshot pair exists again. This applies to deletion of either the baseline or the latest reading; it does not clear totals or present missing data as zero.
 - **Applying.**
   - Saving a snapshot, or deleting one, recomputes every open (non-finalized) period whose `endsAt + 1h >= takenAt`. For each period that has a baseline, it **replaces** that period's `WagerEntry` rows (source `affiliate`).
   - The snapshot write and all recomputes run in one serializable transaction, via `writeEntries(tx, …)` extracted from `saveEntries`.

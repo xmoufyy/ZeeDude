@@ -20,7 +20,7 @@ export function DelayedNotice({ freshness }: { freshness: Freshness }) {
             (as of <time dateTime={freshness.since}>{formatPeriodDate(freshness.since)}</time>)
           </>
         )}
-        . Rankings will catch up automatically.
+        . Rankings update when fresh data is available.
       </p>
     </div>
   );

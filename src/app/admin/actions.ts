@@ -31,6 +31,7 @@ import { isValidSplit } from "@/lib/payouts";
 import { fromZonedInputValue } from "@/lib/period";
 import { CsvImportProvider, ProviderError } from "@/lib/providers";
 import { ProfileError, reviewClaim } from "@/lib/profile";
+import { reviewedClaimKeySchema } from "@/lib/profile-schema";
 import { normalizeUsername } from "@/lib/ranking";
 import { ensureCurrentPeriod, runRefresh } from "@/lib/refresh";
 import { BusyError } from "@/lib/tx";
@@ -322,7 +323,7 @@ export async function reviewClaimAction(
     const player = await reviewClaim(
       id.parse(playerId),
       z.enum(["approve", "reject", "reset"]).parse(decision),
-      z.string().min(1).max(64).parse(reviewedKey),
+      reviewedClaimKeySchema.parse(reviewedKey),
     );
     changed();
     const label = { approve: "verified", reject: "rejected", reset: "moved back to pending" }[decision];
@@ -407,7 +408,7 @@ export async function deleteAffiliateSnapshotAction(snapshotId: string, _prev: A
       ok: true,
       message: "Copy deleted.",
       details: outcomes.map((o) =>
-        o.baselineAt ? `${o.periodName}: leaderboard recalculated.` : `${o.periodName}: no earlier copy left to compare with, so its leaderboard was left as it was.`,
+        o.baselineAt ? `${o.periodName}: leaderboard recalculated.` : `${o.periodName}: ${o.warnings.join(" ") || "No earlier copy left to compare with, so its leaderboard was left as it was."}`,
       ),
     };
   });

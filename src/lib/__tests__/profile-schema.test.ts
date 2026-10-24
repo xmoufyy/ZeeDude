@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { profileSchema } from "../profile-schema";
+import { profileSchema, reviewedClaimKeySchema } from "../profile-schema";
+import { normalizeUsername } from "../ranking";
 
 const base = { solpumpUsername: "SolSurfer", displayName: "", discordUsername: "", kickUsername: "", xUsername: "", hideName: true };
 
 describe("profileSchema", () => {
+  it("allows review of the longest accepted Unicode claim after normalization", () => {
+    const name = profileSchema.parse({ ...base, solpumpUsername: "İ".repeat(64) }).solpumpUsername!;
+    const key = normalizeUsername(name);
+    expect(key).toHaveLength(128);
+    expect(reviewedClaimKeySchema.parse(key)).toBe(key);
+    expect(reviewedClaimKeySchema.safeParse("x".repeat(129)).success).toBe(false);
+  });
   it("turns blank optional fields into undefined", () => {
     const parsed = profileSchema.parse(base);
     expect(parsed).toEqual({ solpumpUsername: "SolSurfer", hideName: true });

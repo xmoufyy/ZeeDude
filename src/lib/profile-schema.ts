@@ -24,3 +24,7 @@ export const profileSchema = z.object({
 
 export type ProfileInput = z.infer<typeof profileSchema>;
 
+// Unicode lowercasing can expand each U+0130 into two UTF-16 units.
+// Keep every accepted 64-unit username reviewable without changing its key.
+export const reviewedClaimKeySchema = z.string().min(1).max(128);
+

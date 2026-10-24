@@ -35,7 +35,7 @@ export function AutoRefresh({ updatedAt, serverNow }: { updatedAt: string | null
       </span>
       {updatedAt ? (
         <span>
-          Last updated{" "}
+          Wager data as of{" "}
           <time dateTime={updatedAt} title={new Date(updatedAt).toUTCString()}>
             {relative(updatedAt, now)}
           </time>
@@ -44,7 +44,7 @@ export function AutoRefresh({ updatedAt, serverNow }: { updatedAt: string | null
         <span>Waiting for the first data import</span>
       )}
       <span className="basis-full text-xs text-muted/80">
-        Totals are imported from SolPump, so recent bets can take a while to show up.
+        Page checks for updates every 2 minutes. Wager totals change when a new SolPump copy is imported.
       </span>
     </p>
   );

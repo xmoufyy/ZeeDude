@@ -303,3 +303,16 @@ Status: 2 open. The authorized inspection budget is used.
   - tsc and eslint clean
   - `verify:concurrency` 8/8; the affiliate scenario now runs the Sunday sequence (last-week copy, boundary copy, which leaves the board untouched, then a mid-week copy giving 1.5)
 - Not independently inspected.
+
+## Audit completion — Codex, 2026-10-24
+
+- Authorized by the user: complete Claude's unfinished website audit from the pasted brief. Reviewed the main checkout plus Claude's uncommitted audit in `.claude/worktrees/zeedude-solpump-review-44a363`; retained that worktree and the user's analytics dependency changes.
+- Full severity-ordered findings, selected usability improvements, evidence, and limitations: `docs/audits/2026-10-24.md`.
+- Fixed confirmed import defects (decimal-comma inflation, commission columns, malformed first-row header detection, and silent omission of cards without metadata), incorrect reading freshness, the two inspection-6 loose ends (Unicode claim keys and verifier timeout handling), and misleading no-data display.
+- User decision: **retain totals with a warning** after deleting the last usable reading or baseline. Implemented a persistent warning for open public boards using the same snapshot selection as recalculation; totals and reading timestamps are retained, and a usable replacement clears the warning. Updated the affiliate spec. No schema or migration change.
+- Five focused usability groups: preserved form drafts, clearer wager freshness, local race times beside Eastern dates, improved mobile rank/name spacing and claim status, and visible clipboard-error recovery.
+- Final proof: `npm test` **145/145** across 16 files; TypeScript, ESLint and diff whitespace checks clean; `verify:concurrency` **9/9 × 5** on SQLite; `verify:postgres` all checks passed (4 migrations, no drift, **9/9 × 5**, production build, seeded HTTP/asset and cron checks); separate final SQLite production build passed. Final generated client and build target SQLite.
+- Regression evidence includes failed-before/passed-after parser and empty-podium tests; timestamp checks; retained-data/latest and baseline deletion/recovery checks; and unchanged finalized results/payouts after unrelated imports. A deliberately stalled temporary verifier exited 1 at 25ms without later checks or database cleanup.
+- Browser proof: live public pages read-only; isolated production build with seeded data and test admin login; malformed paste retained after error; valid preview retained paste and timestamp; local race times and masked names rendered; retained 1.5 SOL and its old date shown with the warning. Screenshots retained under `docs/audits/`.
+- Initial verification failures were resolved: sandbox Windows account lookup, missing SQLite file, Prisma DLL lock from overlapping verification, and a new fixture that incorrectly expected no baseline while an older baseline remained. Final runs passed with the intended assertions intact.
+- Limitations: no real wallet extension, production admin session, Docker execution, or fresh narrow-mobile browser pass. No production changes or deployment. Temporary server and fixture data removed. No independent subagent inspection was run.

@@ -31,6 +31,7 @@ const LIST_HEADER = /^\s*(?:user\s*name|username|user|name|player|referral|accou
 const CARD_MARKER = /(?<![\p{L}\p{N}_])(?:generated|first\s+seen|last\s+seen)(?![\p{L}\p{N}_])/iu;
 // Verified ticks and similar marks the page shows after a name.
 const TRAILING_MARKS = /[\s✓✔☑✅︎️]+$/u;
+const EXTRA_COLUMN = /(?:[,;\t]|\s{2,})\s*[◎$]?\s*[\d,]*\.?\d+\s*(?:sol)?$/i;
 
 function cleanName(raw: string): string {
   return raw.replace(/[\u0000-\u001f\u007f]/g, "").replace(TRAILING_MARKS, "").trim();
@@ -94,22 +95,30 @@ export function parseAffiliatePaste(raw: string): AffiliateParse {
     // Page totals ("Total Wagered ...") sit above the list; anything after the
     // first card counts, even a last card cut off before its commission.
     const firstCard = cards.findIndex((c) => c.card);
-    const header = firstCard > 0 ? cards.slice(0, firstCard) : [];
+    // Only recognized page totals may be skipped. Missing metadata on a
+    // player's card must never cause that player to disappear from an import.
+    const header = [];
+    for (let i = 0; i < firstCard; i++) {
+      if (!/^(?:total|total\s+wagers?|all[- ]time)$/i.test(cards[i].name)) break;
+      header.push(cards[i]);
+    }
     for (const c of header) warnings.push(`Line ${c.line}: skipped "${c.name ? `${c.name} ` : ""}Wagered" text above the player list.`);
     found = cards.slice(header.length);
     for (const c of found) if (!c.name) errors.push(`Line ${c.line}: found "Wagered" with no player name before it.`);
     found = found.filter((c) => c.name);
   } else {
     // Simple list: every non-empty line must be "name, amount" (a first line
-    // with a delimiter and no digits is treated as a header).
+    // with recognized column names is treated as a header).
     found = [];
     const lines = text.split("\n").map((l) => l.trim());
     let seenContent = false;
     lines.forEach((line, i) => {
       if (!line) return;
       const plain = /^(.+?)(?:\s*[,;\t]\s*|\s{2,})([◎$]?\s*[\d,]*\.?\d+)\s*(sol)?$/i.exec(line);
-      if (plain) found.push({ line: i + 1, name: plain[1], amount: plain[2] });
-      else if (!seenContent && !/\d/.test(line) && /[,;\t]/.test(line)) {
+      if (plain && EXTRA_COLUMN.test(plain[1])) {
+        errors.push(`Line ${i + 1}: more than one number in "${line.slice(0, 40)}". Paste just the name and the wagered amount.`);
+      } else if (plain) found.push({ line: i + 1, name: plain[1], amount: plain[2] });
+      else if (!seenContent && /^\s*(?:user\s*name|user|name|player|referral|account)s?\s*[,;\t]\s*(?:wagered|amount|total|lifetime)(?:\s*\(?sol\)?)?\s*$/i.test(line)) {
         // header
       } else errors.push(`Line ${i + 1}: expected "name, amount" but got "${line.slice(0, 40)}".`);
       seenContent = true;

@@ -5,6 +5,7 @@ import { CopyCode } from "@/components/copy-code";
 import { Countdown } from "@/components/countdown";
 import { JoinCard } from "@/components/join-card";
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { LocalTime } from "@/components/local-time";
 import { Podium } from "@/components/podium";
 import { PrizeBreakdown } from "@/components/prize-breakdown";
 import { DelayedNotice } from "@/components/delayed-notice";
@@ -65,14 +66,17 @@ async function CurrentBoard() {
           <Countdown startsAt={period.startsAt} endsAt={period.endsAt} serverNow={serverNow} finalized={period.finalized} />
           <p className="text-sm text-muted">
             <time dateTime={period.startsAt}>{formatPeriodDate(period.startsAt)}</time>
+            <LocalTime iso={period.startsAt} />
             {" → "}
             <time dateTime={period.endsAt}>{formatPeriodDate(period.endsAt)}</time>
+            <LocalTime iso={period.endsAt} />
           </p>
         </div>
       </Hero>
 
       <section aria-labelledby="board-heading" className="space-y-8">
         <DelayedNotice freshness={freshness} />
+        {board.dataWarning && <p role="status" className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm text-gold">{board.dataWarning}</p>}
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <h2 id="board-heading" className="font-display text-2xl sm:text-3xl">
@@ -90,10 +94,10 @@ async function CurrentBoard() {
           </div>
           {!notStarted && (
             <>
-              <p className="text-muted">
+              {board.dataUpdatedAt && <p className="text-muted">
                 {board.playerCount} {board.playerCount === 1 ? "player" : "players"} ·{" "}
                 {formatSol(board.totalWageredSol, { max: 2 })} SOL wagered
-              </p>
+              </p>}
               <AutoRefresh updatedAt={board.dataUpdatedAt} serverNow={serverNow} />
             </>
           )}

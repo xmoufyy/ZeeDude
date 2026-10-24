@@ -18,6 +18,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Separate checkouts have their own sources and generated build output.
+    ".claude/worktrees/**",
   ]),
 ]);
 

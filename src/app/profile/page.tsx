@@ -83,8 +83,8 @@ async function ProfileBody() {
         <Stat label="Prizes paid" value={stats ? `${formatSol(stats.wonSol)} SOL` : "—"} tone="text-emerald-300" />
         <Stat
           label="Status"
-          value={approved ? "Verified" : player.solpumpStatus === "pending" ? "Pending" : "Unlinked"}
-          tone={approved ? "text-emerald-300" : "text-muted"}
+          value={approved ? "Verified" : player.solpumpStatus === "pending" ? "Pending" : player.solpumpStatus === "rejected" ? "Not verified" : "Unlinked"}
+          tone={approved ? "text-emerald-300" : player.solpumpStatus === "rejected" ? "text-red-300" : "text-muted"}
         />
       </div>
       {stats?.rank != null && (

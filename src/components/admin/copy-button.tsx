@@ -5,14 +5,17 @@ import { useState } from "react";
 /** Small button that copies `value` to the clipboard and confirms briefly. */
 export function CopyButton({ value, label = "Copy", description }: { value: string; label?: string; description: string }) {
   const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function copy() {
+    setCopied(false);
+    setFailed(false);
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard blocked (e.g. insecure context): the value is in the title tooltip to copy by hand.
+      setFailed(true);
     }
   }
 
@@ -32,6 +35,7 @@ export function CopyButton({ value, label = "Copy", description }: { value: stri
       <span className="sr-only" aria-live="polite">
         {copied ? `Copied ${description}` : ""}
       </span>
+      {failed && <span role="status" className="text-xs text-amber-200">Copy blocked. Select and copy manually: <span className="break-all select-all">{value}</span></span>}
     </>
   );
 }
