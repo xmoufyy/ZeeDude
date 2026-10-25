@@ -20,8 +20,8 @@ type Props = {
 const STATUS = {
   none: null,
   pending: { label: "Pending verification", className: "bg-gold/15 text-gold" },
-  approved: { label: "Verified", className: "bg-emerald-400/15 text-emerald-300" },
-  rejected: { label: "Not verified", className: "bg-red-400/15 text-red-300" },
+  approved: { label: "Verified", className: "bg-success/15 text-success" },
+  rejected: { label: "Not verified", className: "bg-danger/15 text-danger" },
 } as const;
 
 function Field({
@@ -148,8 +148,11 @@ export function ProfileForm({ wallet, values, claimStatus }: Props) {
       </button>
       <div aria-live="polite">
         {state && (
-          <div className={`rounded-lg px-3 py-2 text-sm ${state.ok ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>
-            <p>{state.message}</p>
+          <div className={`rounded-lg border px-3 py-2 text-sm ${state.ok ? "border-success/30 bg-success/10 text-success" : "border-danger/35 bg-danger/10 text-danger"}`}>
+            <p>
+              <span aria-hidden="true">{state.ok ? "✓ " : "✕ "}</span>
+              {state.message}
+            </p>
             {state.details && (
               <ul className="mt-1 list-disc pl-5 text-xs">
                 {state.details.map((d) => (

@@ -17,8 +17,8 @@ export default function PlayersPage() {
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-gold/15 text-gold",
-  approved: "bg-emerald-400/15 text-emerald-300",
-  rejected: "bg-red-400/15 text-red-300",
+  approved: "bg-success/15 text-success",
+  rejected: "bg-danger/15 text-danger",
   none: "bg-white/10 text-muted",
 };
 

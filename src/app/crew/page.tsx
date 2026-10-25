@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { site } from "@/lib/site";
 
@@ -24,7 +25,18 @@ export default function CrewPage() {
     <div className="mx-auto max-w-5xl space-y-20 px-4 pt-10 sm:pt-16">
       <section className="relative space-y-6 text-center" aria-labelledby="crew-heading">
         <div className="pointer-events-none absolute inset-x-0 -top-10 mx-auto h-64 max-w-xl rounded-full bg-violet/30 blur-3xl" aria-hidden="true" />
-        <p className="relative text-xs font-semibold tracking-[0.3em] text-magenta uppercase">ZeeDude × Community</p>
+        <div className="panel panel-feature relative mb-10 overflow-hidden p-1.5 shadow-[0_24px_60px_-30px] shadow-magenta">
+          <Image
+            src="/brand/dude-munity-banner.webp"
+            alt="Dude-munity: the crypto casino community. ZeeDude on a golden throne under stage lights. Real degens, real people. Use code ZEEDUDE."
+            width={2000}
+            height={750}
+            sizes="(min-width: 1024px) 992px, 100vw"
+            className="h-auto w-full rounded-[1rem]"
+            priority
+          />
+        </div>
+        <p className="eyebrow relative tracking-[0.3em]">ZeeDude × Community</p>
         <h1 id="crew-heading" className="relative font-display text-5xl leading-[1.05] sm:text-7xl">
           Join the <span className="text-gold-gradient">Dude Crew</span>{" "}
           <span aria-hidden="true">👑</span>
@@ -40,7 +52,7 @@ export default function CrewPage() {
               href={discord}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-b from-violet to-magenta px-7 py-4 text-lg font-bold text-white shadow-[0_10px_40px_-10px] shadow-magenta transition hover:brightness-110"
+              className="btn btn-brand rounded-2xl px-7 py-4 text-lg"
             >
               Join the Discord <span aria-hidden="true">→</span>
               <span className="sr-only">(opens in a new tab)</span>
@@ -56,7 +68,7 @@ export default function CrewPage() {
               href={s.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center rounded-2xl border border-line px-6 py-4 font-bold transition hover:border-gold/50 hover:text-gold"
+              className="btn rounded-2xl px-6 py-4 text-base hover:border-gold/50 hover:text-gold"
             >
               {s.name === "X" ? "Follow ZeeDude on X" : `Watch on ${s.name}`}
             </a>
@@ -66,14 +78,14 @@ export default function CrewPage() {
 
       <section className="space-y-8" aria-labelledby="why-heading">
         <div className="text-center">
-          <p className="text-xs font-semibold tracking-[0.3em] text-magenta uppercase">Perks</p>
+          <p className="eyebrow tracking-[0.3em]">Perks</p>
           <h2 id="why-heading" className="font-display text-3xl sm:text-4xl">
             Why join?
           </h2>
         </div>
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {PERKS.map((perk) => (
-            <li key={perk.title} className="panel p-6 transition hover:-translate-y-0.5 hover:border-gold/40">
+            <li key={perk.title} className="panel p-6 transition hover:-translate-y-0.5 hover:border-gold/40 motion-reduce:hover:translate-y-0">
               <span className="text-3xl" aria-hidden="true">
                 {perk.icon}
               </span>
@@ -86,7 +98,7 @@ export default function CrewPage() {
 
       <section className="space-y-8" aria-labelledby="steps-heading">
         <div className="text-center">
-          <p className="text-xs font-semibold tracking-[0.3em] text-magenta uppercase">Three steps</p>
+          <p className="eyebrow tracking-[0.3em]">Three steps</p>
           <h2 id="steps-heading" className="font-display text-3xl sm:text-4xl">
             How to get started
           </h2>

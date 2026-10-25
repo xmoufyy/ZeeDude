@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { db } from "./db";
 import { markLoginSucceeded, pickClientIp, pruneLoginAttempts, reserveLoginAttempt } from "./login-limiter";
 import { verifyPassword } from "./password";
-import { createSessionToken, readSessionToken } from "./session";
+import { createSessionToken, readCookie, readSessionToken } from "./session";
 
 const COOKIE_NAME = "zd_admin";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -39,13 +39,8 @@ export async function isAdmin(): Promise<boolean> {
   // Read from the raw Cookie header rather than cookies(): in `next dev`,
   // cookies() throws an InvariantError when a page re-renders inside a
   // Server Action request (Next 16.4). The token is signature-checked either way.
-  const header = (await headers()).get("cookie") ?? "";
-  const token = header
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${COOKIE_NAME}=`))
-    ?.slice(COOKIE_NAME.length + 1);
-  return readSessionToken(token && decodeURIComponent(token), config().signingKey, Date.now()) !== null;
+  const token = readCookie((await headers()).get("cookie") ?? "", COOKIE_NAME);
+  return readSessionToken(token, config().signingKey, Date.now()) !== null;
 }
 
 /** Call at the top of every admin page and Server Action. */

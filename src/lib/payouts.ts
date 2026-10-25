@@ -30,7 +30,11 @@ export function computePlacePrizes(poolSol: number, split: readonly number[]): P
   const poolLamports = solToLamports(poolSol);
   if (poolLamports < 0) throw new Error("Prize pool cannot be negative");
 
-  const exact = split.map((percent) => (poolLamports * percent) / 100);
+  // Divide by the split's own total, not 100: isValidSplit allows a hair of
+  // float noise, and dividing by 100 would hand that noise out as extra (or
+  // missing) lamports.
+  const total = split.reduce((sum, p) => sum + p, 0);
+  const exact = split.map((percent) => (poolLamports * percent) / total);
   const lamports = exact.map(Math.floor);
   let leftover = poolLamports - lamports.reduce((sum, l) => sum + l, 0);
 

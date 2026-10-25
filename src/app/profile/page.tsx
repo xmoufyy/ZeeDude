@@ -18,7 +18,7 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-4 pt-8 sm:pt-12">
       <header className="space-y-3 text-center">
-        <p className="text-xs font-semibold tracking-[0.3em] text-magenta uppercase">ZeeDude Rewards</p>
+        <p className="eyebrow tracking-[0.3em]">ZeeDude Rewards</p>
         <h1 className="font-display text-4xl sm:text-5xl">
           My <span className="text-gold-gradient">Profile</span>
         </h1>
@@ -48,7 +48,7 @@ async function ProfileBody() {
   if (!wallet) {
     return (
       <section className="panel space-y-4 p-6 sm:p-8" aria-labelledby="signin-heading">
-        <p className="text-xs font-semibold tracking-[0.2em] text-magenta uppercase">Step 1</p>
+        <p className="eyebrow">Step 1</p>
         <h2 id="signin-heading" className="font-display text-2xl">
           Connect your wallet
         </h2>
@@ -80,11 +80,11 @@ async function ProfileBody() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Rank this week" value={stats?.rank ? `#${stats.rank}` : "—"} tone="text-gold" />
         <Stat label="Wagered this week" value={stats?.wageredSol != null ? `${formatSol(stats.wageredSol, { max: 2 })} SOL` : "—"} />
-        <Stat label="Prizes paid" value={stats ? `${formatSol(stats.wonSol)} SOL` : "—"} tone="text-emerald-300" />
+        <Stat label="Prizes paid" value={stats ? `${formatSol(stats.wonSol)} SOL` : "—"} tone="text-success" />
         <Stat
           label="Status"
           value={approved ? "Verified" : player.solpumpStatus === "pending" ? "Pending" : player.solpumpStatus === "rejected" ? "Not verified" : "Unlinked"}
-          tone={approved ? "text-emerald-300" : player.solpumpStatus === "rejected" ? "text-red-300" : "text-muted"}
+          tone={approved ? "text-success" : player.solpumpStatus === "rejected" ? "text-danger" : "text-muted"}
         />
       </div>
       {stats?.rank != null && (
@@ -113,7 +113,7 @@ async function ProfileBody() {
       <section className="panel space-y-5 p-6 sm:p-8" aria-labelledby="profile-heading">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold tracking-[0.2em] text-magenta uppercase">Profile info</p>
+            <p className="eyebrow">Profile info</p>
             <h2 id="profile-heading" className="font-display text-2xl">
               {player.displayName ? `Hey, ${player.displayName}` : "Save your reward info"}
             </h2>

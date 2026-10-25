@@ -120,7 +120,12 @@ export function WalletSignIn() {
         Signing a message only proves you own the wallet. It never sends a transaction or costs anything.
       </p>
       <div aria-live="polite">
-        {error && <p className="rounded-lg bg-red-400/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+        {error && (
+          <p className="rounded-lg border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger">
+            <span aria-hidden="true">✕ </span>
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );

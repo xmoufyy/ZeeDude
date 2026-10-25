@@ -23,6 +23,7 @@ import {
   deleteAffiliateSnapshot,
   type PeriodOutcome,
   previewAffiliateSnapshot,
+  recomputeAffiliatePeriod,
   saveAffiliateSnapshot,
 } from "@/lib/affiliate-import";
 import { saveEntries } from "@/lib/entries";
@@ -146,9 +147,16 @@ export async function createPeriodAction(_prev: ActionResult, form: FormData): P
 
 export async function updatePeriodAction(periodId: string, _prev: ActionResult, form: FormData): Promise<ActionResult> {
   return guarded(async () => {
-    await updatePeriod(id.parse(periodId), readPeriodForm(form));
+    const periodKey = id.parse(periodId);
+    const { datesChanged } = await updatePeriod(periodKey, readPeriodForm(form));
+    // Affiliate totals depend on the window (latest copy minus the copy at the start), so new dates need new totals.
+    const recomputed = datesChanged ? await recomputeAffiliatePeriod(periodKey) : null;
+    if (recomputed?.baselineAt) await snapshotPeriod(periodKey);
     changed();
-    return { ok: true, message: "Saved." };
+    if (!recomputed) return { ok: true, message: "Saved." };
+    return recomputed.baselineAt
+      ? { ok: true, message: "Saved. SolPump totals were recalculated for the new dates." }
+      : { ok: true, message: "Saved. No SolPump copy fits the new dates yet, so the current totals were kept." };
   });
 }
 
@@ -279,8 +287,12 @@ export async function excludeUserAction(_prev: ActionResult, form: FormData): Pr
 
 export async function unexcludeUserAction(excludedId: string, _prev: ActionResult): Promise<ActionResult> {
   return guarded(async () => {
-    const user = await db.excludedUser.delete({ where: { id: id.parse(excludedId) } });
+    const excludedKey = id.parse(excludedId);
+    const user = await db.excludedUser.findUnique({ where: { id: excludedKey } });
+    // deleteMany doesn't throw when a second click (or another tab) already removed it.
+    const { count } = await db.excludedUser.deleteMany({ where: { id: excludedKey } });
     changed();
+    if (!user || count === 0) return { ok: true, message: "That player was already allowed back on the leaderboards." };
     return { ok: true, message: `${user.username} can place again.` };
   });
 }
@@ -369,7 +381,8 @@ export async function affiliateImportAction(_prev: AffiliateResult, form: FormDa
     if (parsed.errors.length) return { ok: false, message: "Couldn't read the paste:", details: parsed.errors.slice(0, 10) };
 
     // Make sure this week's period exists so the paste has somewhere to go.
-    await ensureCurrentPeriod();
+    // Creating it is a real change even on a preview, so refresh the public board.
+    if (await ensureCurrentPeriod()) changed();
     if (intent === "preview") {
       const outcomes = await previewAffiliateSnapshot(parsed.rows, takenAt);
       return {

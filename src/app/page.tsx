@@ -10,6 +10,7 @@ import { Podium } from "@/components/podium";
 import { PrizeBreakdown } from "@/components/prize-breakdown";
 import { DelayedNotice } from "@/components/delayed-notice";
 import { GameRules } from "@/components/game-rules";
+import { Notice } from "@/components/notice";
 import { assessFreshness, staleAfterMs } from "@/lib/freshness";
 import { requestNow } from "@/lib/request-time";
 import { formatPeriodDate } from "@/lib/period";
@@ -58,10 +59,10 @@ async function CurrentBoard() {
   return (
     <>
       <Hero>
-        <div className="space-y-5">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="font-display text-4xl text-shine sm:text-5xl">{formatSol(period.prizePoolSol)} SOL</span>
-            <span className="text-sm font-semibold tracking-[0.2em] text-muted uppercase">Weekly prize pool</span>
+        <div className="panel panel-feature space-y-5 p-4 sm:p-6">
+          <div>
+            <p className="label-caps">Weekly prize pool</p>
+            <p className="font-display text-4xl leading-tight text-shine sm:text-5xl">{formatSol(period.prizePoolSol)} SOL</p>
           </div>
           <Countdown startsAt={period.startsAt} endsAt={period.endsAt} serverNow={serverNow} finalized={period.finalized} />
           <p className="text-sm text-muted">
@@ -76,10 +77,10 @@ async function CurrentBoard() {
 
       <section aria-labelledby="board-heading" className="space-y-8">
         <DelayedNotice freshness={freshness} />
-        {board.dataWarning && <p role="status" className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm text-gold">{board.dataWarning}</p>}
+        {board.dataWarning && <Notice tone="warning">{board.dataWarning}</Notice>}
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
-            <h2 id="board-heading" className="font-display text-2xl sm:text-3xl">
+            <h2 id="board-heading" className="section-title">
               {notStarted ? (
                 <>
                   Next <span className="text-gold-gradient">Race</span>
@@ -124,9 +125,10 @@ async function CurrentBoard() {
 
 function Hero({ children }: { children?: React.ReactNode }) {
   return (
-    <section className="grid items-center gap-8 md:grid-cols-[1fr_auto]" aria-labelledby="hero-heading">
+    <section className="grid items-center gap-8 md:grid-cols-[minmax(0,1fr)_auto] lg:gap-12" aria-labelledby="hero-heading">
       <div className="space-y-6">
-        <p className="inline-flex items-center gap-2 rounded-full border border-magenta/40 bg-magenta/10 px-3 py-1 text-xs font-semibold tracking-[0.2em] text-magenta uppercase">
+        <p className="eyebrow inline-flex items-center gap-2 rounded-full border border-magenta/40 bg-magenta/10 px-3 py-1">
+          <span className="size-1.5 rounded-full bg-flame shadow-[0_0_8px] shadow-flame" aria-hidden="true" />
           ZeeDude × SolPump weekly race
         </p>
         <h1 id="hero-heading" className="font-display text-4xl leading-[1.05] sm:text-6xl">
@@ -134,21 +136,30 @@ function Hero({ children }: { children?: React.ReactNode }) {
           <br />
           Wager Leaderboard
         </h1>
-        <div className="flex max-w-sm flex-col gap-2">
-          <span className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Use code</span>
+        <div className="flex max-w-md flex-col gap-2">
+          <span className="label-caps tracking-[0.2em]">Use code</span>
           <CopyCode code={site.referralCode} />
+          <p className="text-sm text-muted">
+            New here?{" "}
+            <a href="#join" className="font-semibold text-cyan underline-offset-4 hover:underline">
+              See how to join
+            </a>
+          </p>
         </div>
         {children}
       </div>
+      {/* Logo on a stage: violet and flame lights behind it, like the banner. */}
       <div className="relative mx-auto hidden w-72 md:block lg:w-96" aria-hidden="true">
-        <div className="absolute inset-6 rounded-full bg-violet/40 blur-3xl" />
+        <div className="absolute inset-4 rounded-full bg-violet/45 blur-3xl" />
+        <div className="absolute -right-4 bottom-6 size-40 rounded-full bg-flame/25 blur-3xl" />
+        <div className="absolute -inset-3 animate-orbit rounded-full border border-dashed border-gold/25" />
         <Image
           src="/brand/zeedude-logo.webp"
           alt=""
           width={384}
           height={384}
           sizes="(min-width: 1024px) 384px, 288px"
-          className="relative rounded-full"
+          className="relative rounded-full ring-1 ring-gold/30"
           priority
         />
       </div>

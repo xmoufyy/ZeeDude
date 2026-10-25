@@ -149,8 +149,12 @@ model WalletNonce {
   message   String
   expiresAt DateTime
   createdAt DateTime @default(now())
+  /// Client IP that started it (see pickClientIp); "direct" when unknown.
+  /// Caps how many open challenges one client can hold.
+  ip        String   @default("direct")
 
   @@index([expiresAt])
+  @@index([ip, expiresAt])
 }
 
 /// A copy of SolPump's affiliate list, which shows each referral's ALL-TIME

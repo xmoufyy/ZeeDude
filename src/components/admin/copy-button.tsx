@@ -27,7 +27,7 @@ export function CopyButton({ value, label = "Copy", description }: { value: stri
         title={value}
         aria-label={`${label}: ${description}`}
         className={`rounded-md border px-2 py-0.5 text-xs font-semibold transition ${
-          copied ? "border-emerald-400/50 text-emerald-300" : "border-line text-cyan hover:border-cyan/50"
+          copied ? "border-success/50 text-success" : "border-line text-cyan hover:border-cyan/50"
         }`}
       >
         {copied ? "Copied!" : label}
@@ -35,7 +35,7 @@ export function CopyButton({ value, label = "Copy", description }: { value: stri
       <span className="sr-only" aria-live="polite">
         {copied ? `Copied ${description}` : ""}
       </span>
-      {failed && <span role="status" className="text-xs text-amber-200">Copy blocked. Select and copy manually: <span className="break-all select-all">{value}</span></span>}
+      {failed && <span role="status" className="text-xs text-warning">Copy blocked. Select and copy manually: <span className="break-all select-all">{value}</span></span>}
     </>
   );
 }

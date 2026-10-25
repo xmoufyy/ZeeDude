@@ -14,7 +14,7 @@ export function MoveBadge({ move, className = "" }: { move?: Move; className?: s
   const up = move > 0;
   return (
     <span
-      className={`text-xs font-bold tabular-nums ${up ? "text-emerald-300" : "text-red-300"} ${className}`}
+      className={`text-xs font-bold tabular-nums ${up ? "text-success" : "text-danger"} ${className}`}
       title={`${up ? "Up" : "Down"} ${Math.abs(move)} since the last update`}
     >
       <span aria-hidden="true">{up ? "▲" : "▼"}</span>
@@ -27,9 +27,12 @@ export function MoveBadge({ move, className = "" }: { move?: Move; className?: s
 /** "0.80 SOL behind #3". Renders nothing for the leader. */
 export function GapNote({ gapSol, gapRank, className = "" }: { gapSol?: number; gapRank?: number; className?: string }) {
   if (gapSol === undefined || gapRank === undefined) return null;
+  const gap = formatSol(gapSol, { min: 2, max: 2 });
   return (
     <span className={`text-xs text-muted ${className}`}>
-      {formatSol(gapSol, { min: 2, max: 2 })} SOL behind #{gapRank}
+      {/* Phones drop the unit so the whole note fits beside a masked name. */}
+      {gap}
+      <span className="hidden sm:inline"> SOL</span> behind #{gapRank}
     </span>
   );
 }

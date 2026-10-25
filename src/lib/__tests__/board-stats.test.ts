@@ -73,3 +73,27 @@ describe("MoveBadge and GapNote", () => {
     expect(html(createElement(GapNote, {}))).toBe("");
   });
 });
+
+describe("rankMoves after a prize pool edit", () => {
+  it("keeps the climb arrows when only the prizes changed", () => {
+    const before = [row(1, "Alice", 10, 4), row(2, "Bob", 8, 2)];
+    const imported = [row(1, "Bob", 12, 4), row(2, "Alice", 10, 2)];
+    // The admin doubles the pool: same standings, new prizes. It used to count as a change and wipe every arrow to 0.
+    const repriced = imported.map((r) => ({ ...r, prizeSol: r.prizeSol * 2 }));
+    const moves = rankMoves(repriced, [JSON.stringify(imported), JSON.stringify(before)]);
+    expect(Object.fromEntries(moves!)).toEqual({ bob: 1, alice: -1 });
+  });
+});
+
+describe("gapsToNextPlace on a big board", () => {
+  it("matches the nearest better rank for every row, ties included", () => {
+    const rows: StandingRow[] = [];
+    for (let i = 0; i < 3000; i++) rows.push(row(i - (i % 3) + 1, `p${i}`, 3000 - (i - (i % 3))));
+    const gaps = gapsToNextPlace(rows);
+    // Row 3 is the first of the rank-4 group; the nearest better rank is the rank-1 group.
+    expect(gaps.get("p3")).toEqual({ sol: 3, rank: 1 });
+    expect(gaps.get("p5")).toEqual({ sol: 3, rank: 1 });
+    expect(gaps.has("p0") || gaps.has("p2")).toBe(false);
+    expect(gaps.size).toBe(2997);
+  });
+});

@@ -47,12 +47,16 @@ export async function createPeriod(input: PeriodInput) {
   });
 }
 
-export async function updatePeriod(periodId: string, input: PeriodInput) {
+/** Saves the period's settings and reports whether its start or end moved. */
+export async function updatePeriod(periodId: string, input: PeriodInput): Promise<{ datesChanged: boolean }> {
   return serializable(async (tx) => {
-    await assertEditable(periodId, tx);
+    const before = await assertEditable(periodId, tx);
     const overlap = await findOverlappingPeriod(input.startsAt, input.endsAt, periodId, tx);
     if (overlap) throw new AdminError(`Those dates overlap "${overlap.name}".`);
-    return tx.period.update({ where: { id: periodId }, data: { ...input, payoutSplit: JSON.stringify(input.payoutSplit) } });
+    await tx.period.update({ where: { id: periodId }, data: { ...input, payoutSplit: JSON.stringify(input.payoutSplit) } });
+    return {
+      datesChanged: before.startsAt.getTime() !== input.startsAt.getTime() || before.endsAt.getTime() !== input.endsAt.getTime(),
+    };
   });
 }
 

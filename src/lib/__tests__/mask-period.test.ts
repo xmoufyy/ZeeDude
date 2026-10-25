@@ -69,4 +69,12 @@ describe("zoned datetime-local values", () => {
     expect(fromZonedInputValue("2026-13-01T00:00")).toBeNull();
     expect(fromZonedInputValue("yesterday")).toBeNull();
   });
+
+  it("rejects days that don't exist instead of rolling into the next month", async () => {
+    const { fromZonedInputValue } = await import("../period");
+    expect(fromZonedInputValue("2026-02-31T17:00")).toBeNull();
+    expect(fromZonedInputValue("2026-04-31T17:00")).toBeNull();
+    expect(fromZonedInputValue("2027-02-29T17:00")).toBeNull();
+    expect(fromZonedInputValue("2028-02-29T17:00")?.toISOString()).toBe("2028-02-29T22:00:00.000Z");
+  });
 });

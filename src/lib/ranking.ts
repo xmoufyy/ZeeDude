@@ -41,7 +41,10 @@ export function rankEntries(
   const sorted = [...merged.values()].sort(
     (a, b) =>
       b.wageredSol - a.wageredSol ||
-      a.username.localeCompare(b.username, "en", { sensitivity: "base" }),
+      a.username.localeCompare(b.username, "en", { sensitivity: "base" }) ||
+      // Names equal at base sensitivity ("José" / "Jose") still need a fixed
+      // order, or the leftover lamport of a tie could follow database row order.
+      (a.username < b.username ? -1 : a.username > b.username ? 1 : 0),
   );
 
   let rank = 0;

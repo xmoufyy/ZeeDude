@@ -46,12 +46,27 @@ describe("Postgres schema", () => {
           .map((s) => s.replace(/^\s*--.*$/gm, "").trim())
           .filter((s) => s && !s.startsWith("CREATE SCHEMA"));
       const dir = "prisma/postgres/migrations";
-      const committed = new Set(
-        readdirSync(dir, { withFileTypes: true })
-          .filter((d) => d.isDirectory())
-          .flatMap((d) => statements(read(`${dir}/${d.name}/migration.sql`))),
-      );
-      const missing = statements(sql).filter((s) => !committed.has(s));
+      const space = (s: string) => s.replace(/\s+/g, " ");
+      const committedList = readdirSync(dir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .flatMap((d) => statements(read(`${dir}/${d.name}/migration.sql`)));
+      // A column added to an existing table arrives as ALTER TABLE ... ADD
+      // COLUMN, so leave it out of the from-scratch CREATE TABLE before comparing.
+      const added = committedList.flatMap((s) => {
+        const m = /^ALTER TABLE ("\w+") ADD COLUMN\s+([^]+)$/.exec(s);
+        return m ? [{ table: m[1], column: space(m[2]) }] : [];
+      });
+      const withoutAdded = (s: string) => {
+        const table = /^CREATE TABLE ("\w+")/.exec(s)?.[1];
+        if (!table) return s;
+        const isAdded = (line: string) => added.some((a) => a.table === table && space(line.trim()).replace(/,$/, "") === a.column);
+        return s
+          .split("\n")
+          .filter((line) => !isAdded(line))
+          .join("\n");
+      };
+      const committed = new Set(committedList.map(space));
+      const missing = statements(sql).filter((s) => !committed.has(space(withoutAdded(s))));
       expect(missing).toEqual([]);
     },
     60_000,

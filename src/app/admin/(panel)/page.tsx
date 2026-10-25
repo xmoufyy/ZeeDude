@@ -75,8 +75,8 @@ async function Dashboard() {
       )}
 
       {needsEnding.length > 0 && (
-        <div className="rounded-xl border border-gold/40 bg-gold/10 p-4 text-sm">
-          <p className="font-semibold text-gold">Waiting to be ended</p>
+        <div className="notice notice-warning block p-4">
+          <p className="font-semibold text-warning"><span aria-hidden="true">⚠ </span>Waiting to be ended</p>
           <p className="mt-1 text-muted">These races are over. Import the final totals, then end them to lock in the winners.</p>
           <ul className="mt-2 space-y-1">
             {needsEnding.map((p) => (
@@ -122,11 +122,11 @@ async function Dashboard() {
           <p className="text-sm">
             <strong className="text-gold">{SOURCE_LABELS[providerKind] ?? providerKind}</strong>
             <span className="block text-xs text-muted">
-              Last refresh: {status ? formatPeriodDate(status.lastRunAt) : "never"} (runs every 10 min via cron)
+              Last refresh: {status ? formatPeriodDate(status.lastRunAt) : "never"} (runs on your cron schedule: daily on Vercel Hobby, every 10 min with Docker)
             </span>
           </p>
           {status?.lastErrorAt && (!status.lastSuccessAt || status.lastErrorAt > status.lastSuccessAt) && (
-            <p className="rounded-lg bg-red-400/10 px-3 py-2 text-xs whitespace-pre-line text-red-300">
+            <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs whitespace-pre-line text-danger">
               Last refresh failed {formatPeriodDate(status.lastErrorAt)}:{"\n"}
               {status.lastError}
             </p>
@@ -166,7 +166,7 @@ async function Dashboard() {
                       #{p.rank} {p.username} <span className="text-muted">· {p.period.name}</span>
                       {wallet ? (
                         <span className="mt-0.5 flex items-center gap-2 text-xs">
-                          <span className="font-mono text-emerald-300" title={wallet}>
+                          <span className="font-mono text-success" title={wallet}>
                             {shortWallet(wallet)}
                           </span>
                           <CopyButton value={wallet} label="Copy wallet" description={`${p.username}'s wallet address`} />

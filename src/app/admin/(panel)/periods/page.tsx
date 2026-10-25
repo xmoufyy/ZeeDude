@@ -21,9 +21,9 @@ export default function PeriodsPage() {
 
 function status(p: { startsAt: Date; endsAt: Date; finalizedAt: Date | null }, now: Date) {
   if (p.finalizedAt) return { label: "Ended", className: "bg-white/10 text-muted" };
-  if (p.endsAt <= now) return { label: "Needs ending", className: "bg-gold/15 text-gold" };
+  if (p.endsAt <= now) return { label: "Needs ending", className: "bg-warning/15 text-warning" };
   if (p.startsAt > now) return { label: "Scheduled", className: "bg-cyan/15 text-cyan" };
-  return { label: "Live", className: "bg-emerald-400/15 text-emerald-300" };
+  return { label: "Live", className: "bg-success/15 text-success" };
 }
 
 async function Periods() {

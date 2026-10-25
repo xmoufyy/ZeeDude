@@ -121,7 +121,7 @@ async function PeriodDetail({ params }: Pick<PageProps<"/admin/periods/[id]">, "
                   <span className="min-w-32 flex-1 font-semibold">
                     {p.username}
                     {walletByKey.get(normalizeUsername(p.username)) ? (
-                      <span className="block font-mono text-xs font-normal text-emerald-300" title="Verified payout wallet">
+                      <span className="block font-mono text-xs font-normal text-success" title="Verified payout wallet">
                         ✓ {walletByKey.get(normalizeUsername(p.username))}
                       </span>
                     ) : (
@@ -131,7 +131,7 @@ async function PeriodDetail({ params }: Pick<PageProps<"/admin/periods/[id]">, "
                   <span className="w-28 text-gold tabular-nums">{formatSol(p.amountSol)} SOL</span>
                   {p.paid ? (
                     <div className="flex flex-1 flex-wrap items-center gap-3 text-sm">
-                      <span className="text-emerald-300">✓ Paid {p.paidAt ? formatPeriodDate(p.paidAt) : ""}</span>
+                      <span className="text-success">✓ Paid {p.paidAt ? formatPeriodDate(p.paidAt) : ""}</span>
                       {p.txNote && <span className="text-muted">“{p.txNote}”</span>}
                       <ActionForm action={setPayoutPaidAction.bind(null, p.id)} submitLabel="Mark unpaid" variant="plain" inline confirm="Mark this prize as NOT paid?">
                         <input type="hidden" name="paid" value="false" />
@@ -266,11 +266,11 @@ async function PeriodDetail({ params }: Pick<PageProps<"/admin/periods/[id]">, "
                 );
               })}
               {excludedEntries.map((e) => (
-                <tr key={e.id} className="bg-red-400/[0.04] text-muted">
+                <tr key={e.id} className="bg-danger/[0.04] text-muted">
                   <td className="px-4 py-2">—</td>
                   <td className="py-2">
                     {e.username}{" "}
-                    <span className="ml-1 rounded bg-red-400/15 px-1.5 py-0.5 text-xs text-red-300">
+                    <span className="ml-1 rounded bg-danger/15 px-1.5 py-0.5 text-xs text-danger">
                       Excluded: {excludedByKey.get(normalizeUsername(e.username))}
                     </span>
                   </td>
