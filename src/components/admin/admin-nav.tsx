@@ -37,7 +37,7 @@ function Links({ pathname }: { pathname?: string }) {
             href={href}
             aria-current={active ? "page" : undefined}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-              active ? "bg-white/10 text-gold" : "text-muted hover:bg-white/5 hover:text-text"
+              active ? "bg-white/10 text-gold shadow-[inset_0_0_0_1px] shadow-gold/25" : "text-muted hover:bg-white/5 hover:text-text"
             }`}
           >
             {label}

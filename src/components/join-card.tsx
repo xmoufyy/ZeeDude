@@ -12,12 +12,14 @@ export function JoinCard() {
     <section
       id="join"
       aria-labelledby="join-heading"
-      className="panel relative overflow-hidden border-gold/25 p-5 sm:p-8"
+      className="panel panel-feature relative overflow-hidden p-5 sm:p-8"
     >
       <div className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full bg-magenta/20 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -bottom-28 -left-20 size-64 rounded-full bg-flame/10 blur-3xl" aria-hidden="true" />
       <div className="relative grid gap-8 lg:grid-cols-[minmax(0,22rem)_1fr] lg:items-center">
         <div className="space-y-4">
-          <h2 id="join-heading" className="font-display text-2xl sm:text-3xl">
+          <p className="eyebrow">Join the race</p>
+          <h2 id="join-heading" className="section-title">
             How to <span className="text-gold-gradient">Join</span>
           </h2>
           <p className="text-muted">Use our referral code on SolPump to enter the race automatically.</p>
@@ -26,7 +28,7 @@ export function JoinCard() {
             href={site.referralUrl}
             target="_blank"
             rel="noopener noreferrer sponsored"
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-gold to-gold-deep px-6 py-3.5 text-lg font-bold text-ink shadow-[0_8px_30px_-8px] shadow-gold transition hover:brightness-110"
+            className="btn btn-primary w-full rounded-2xl px-6 py-3.5 text-lg"
           >
             Sign up on SolPump
             <svg viewBox="0 0 20 20" className="size-5" fill="currentColor" aria-hidden="true">
@@ -38,7 +40,7 @@ export function JoinCard() {
         </div>
         <ol className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
           {STEPS.map((step, i) => (
-            <li key={step.title} className="rounded-2xl border border-line bg-ink/40 p-4">
+            <li key={step.title} className="rounded-2xl border border-line bg-ink/45 p-4 transition-colors hover:border-line-strong">
               <span
                 className="mb-2 grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet to-magenta font-display text-white"
                 aria-hidden="true"

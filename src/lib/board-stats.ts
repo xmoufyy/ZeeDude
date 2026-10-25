@@ -8,21 +8,31 @@ import type { StandingRow } from "./standings";
 /** Places moved since the previous standings (positive = climbed), or "new". */
 export type Move = number | "new";
 
+// What counts as a change in standings. Prizes are left out: editing the pool
+// or the split re-prices places without anyone moving.
+const standingsKey = (rows: StandingRow[]) => JSON.stringify(rows.map((r) => [r.rank, r.username, r.wageredSol]));
+
 /**
  * Each player's movement against the newest earlier snapshot that differs from
  * the current standings. `snapshots` are stored snapshot JSON, newest first.
  * Returns null when there's nothing earlier to compare with.
  */
 export function rankMoves(current: StandingRow[], snapshots: string[]): Map<string, Move> | null {
-  const now = JSON.stringify(current);
-  const previous = snapshots.find((s) => s !== now);
-  if (!previous) return null;
-  let before: StandingRow[];
-  try {
-    before = JSON.parse(previous) as StandingRow[];
-  } catch {
-    return null;
+  const now = standingsKey(current);
+  let before: StandingRow[] | undefined;
+  for (const snapshot of snapshots) {
+    let rows: StandingRow[];
+    try {
+      rows = JSON.parse(snapshot) as StandingRow[];
+    } catch {
+      return null;
+    }
+    if (standingsKey(rows) !== now) {
+      before = rows;
+      break;
+    }
   }
+  if (!before) return null;
   const oldRank = new Map(before.map((r) => [normalizeUsername(r.username), r.rank]));
   return new Map(
     current.map((r) => {
@@ -38,9 +48,13 @@ export function rankMoves(current: StandingRow[], snapshots: string[]): Map<stri
  */
 export function gapsToNextPlace(ranked: StandingRow[]): Map<string, { sol: number; rank: number }> {
   const gaps = new Map<string, { sol: number; rank: number }>();
+  // Rows are sorted best first, so the nearest better rank is the last row of
+  // the previous rank group. One pass: boards can hold thousands of rows.
+  let ahead: StandingRow | undefined;
+  let previous: StandingRow | undefined;
   for (const row of ranked) {
-    // Rows are sorted best first, so the nearest better rank is the last one above.
-    const ahead = ranked.filter((r) => r.rank < row.rank).at(-1);
+    if (previous && previous.rank < row.rank) ahead = previous;
+    previous = row;
     if (!ahead) continue;
     gaps.set(normalizeUsername(row.username), {
       sol: lamportsToSol(solToLamports(ahead.wageredSol) - solToLamports(row.wageredSol)),

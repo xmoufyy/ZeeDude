@@ -18,14 +18,25 @@ export type ClaimStatus = "none" | "pending" | "approved" | "rejected";
  * back to "pending" for an admin to approve; two players can't hold a claim
  * on the same name at once.
  */
-export async function saveProfile(wallet: string, input: ProfileInput): Promise<{ claimChanged: boolean; status: ClaimStatus }> {
+export async function saveProfile(
+  wallet: string,
+  input: ProfileInput,
+): Promise<{ claimChanged: boolean; status: ClaimStatus; boardChanged: boolean }> {
   try {
     return await serializable(async (tx) => {
       const player = await tx.player.findUnique({ where: { wallet } });
       if (!player) throw new ProfileError("Your session expired. Please sign in again.");
 
       const newKey = input.solpumpUsername ? normalizeUsername(input.solpumpUsername) : null;
-      const claimChanged = newKey !== player.solpumpKey;
+      // A rejected claim keeps its name in the form but gives up the key, so
+      // re-saving it unchanged (say, to edit a Discord handle) is not a new
+      // claim: it stays rejected instead of quietly going back to pending, or
+      // failing outright once the real owner has claimed the name.
+      const sameRejectedName =
+        player.solpumpStatus === "rejected" && newKey !== null && player.solpumpUsername !== null && normalizeUsername(player.solpumpUsername) === newKey;
+      const claimChanged = !sameRejectedName && newKey !== player.solpumpKey;
+      // Only an approved claim changes how a name is shown on the public board.
+      const boardChanged = player.solpumpStatus === "approved" && (claimChanged || player.hideName !== input.hideName);
       let status = player.solpumpStatus as ClaimStatus;
       if (claimChanged) {
         if (newKey) {
@@ -53,7 +64,7 @@ export async function saveProfile(wallet: string, input: ProfileInput): Promise<
               { solpumpUsername: input.solpumpUsername ?? null }),
         },
       });
-      return { claimChanged, status };
+      return { claimChanged, status, boardChanged };
     });
   } catch (error) {
     // Two players claiming the same name at the same moment: the unique index decides.

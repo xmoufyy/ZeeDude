@@ -61,9 +61,11 @@ export async function saveProfileAction(_prev: ProfileResult, form: FormData): P
   }
 
   try {
-    const { claimChanged, status } = await saveProfile(wallet, parsed.data);
-    // Name visibility and claims change how the public board shows names.
-    updateTag(LEADERBOARD_TAG);
+    const { claimChanged, status, boardChanged } = await saveProfile(wallet, parsed.data);
+    // An approved claim's name or visibility changes how the public board
+    // shows names. Other saves leave the cached board alone, so repeated
+    // saves can't keep forcing it to be rebuilt.
+    if (boardChanged) updateTag(LEADERBOARD_TAG);
     revalidatePath("/profile");
     return {
       ok: true,

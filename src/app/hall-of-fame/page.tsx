@@ -60,8 +60,8 @@ async function Hall() {
         <h2 id="records-heading" className="sr-only">Records</h2>
         <ul className="grid gap-3 sm:grid-cols-3">
           {records.map(({ icon, label, row, value }) => (
-            <li key={label} className="panel space-y-1 p-5">
-              <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">
+            <li key={label} className={`panel space-y-1 p-5 ${label === "Most race wins" ? "panel-feature" : ""}`}>
+              <p className="label-caps tracking-[0.2em]">
                 <span aria-hidden="true">{icon}</span> {label}
               </p>
               <p className="truncate font-display text-2xl text-gold">{row.name}</p>
@@ -72,12 +72,12 @@ async function Hall() {
       </section>
 
       <section aria-labelledby="champions-heading" className="space-y-4">
-        <h2 id="champions-heading" className="font-display text-2xl">
+        <h2 id="champions-heading" className="section-title">
           Recent <span className="text-gold-gradient">Champions</span>
         </h2>
         <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
           {hall.champions.map((c) => (
-            <li key={`${c.endsAt}-${c.name}`} className="panel flex flex-col gap-1 p-4">
+            <li key={`${c.endsAt}-${c.name}`} className="panel flex flex-col gap-1 p-4 transition-colors hover:border-gold/30">
               <span className="text-xs text-muted">{formatPeriodRange(c.startsAt, c.endsAt)}</span>
               <span className="truncate font-semibold">
                 <span aria-hidden="true">👑 </span>
@@ -93,7 +93,7 @@ async function Hall() {
 
       <section aria-labelledby="alltime-heading" className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="alltime-heading" className="font-display text-2xl">
+          <h2 id="alltime-heading" className="section-title">
             All-Time <span className="text-gold-gradient">Leaders</span>
           </h2>
           <p className="text-sm text-muted">
@@ -103,7 +103,7 @@ async function Hall() {
         <div className="panel overflow-x-auto">
           <table className="w-full min-w-[34rem] text-left text-sm sm:text-base">
             <caption className="sr-only">All-time leaders by SOL won</caption>
-            <thead className="border-b border-line text-[0.7rem] tracking-widest text-muted uppercase sm:text-xs">
+            <thead className="table-head">
               <tr>
                 <th scope="col" className="w-14 py-3 pl-3 font-semibold sm:pl-6">#</th>
                 <th scope="col" className="py-3 font-semibold">Player</th>
@@ -117,7 +117,7 @@ async function Hall() {
               {hall.rows.slice(0, 50).map((r, i) => (
                 <tr key={`${i}-${r.name}`} className="transition-colors hover:bg-white/[0.03]">
                   <td className="py-3 pl-3 sm:pl-6">
-                    <span className="inline-grid size-8 place-items-center rounded-lg bg-white/5 font-display text-sm text-muted">{i + 1}</span>
+                    <span className={`rank-chip ${i < 3 ? "border-gold/25 text-gold-light" : ""}`}>{i + 1}</span>
                   </td>
                   <td className="max-w-48 truncate py-3 pr-2 font-medium">
                     {r.name}
@@ -133,7 +133,7 @@ async function Hall() {
                   </td>
                   <td className="py-3 pr-3 text-right whitespace-nowrap sm:pr-6">
                     {r.wonSol > 0 ? (
-                      <span className="rounded-full bg-gold/10 px-2.5 py-1 font-semibold text-gold tabular-nums">{formatSol(r.wonSol)} SOL</span>
+                      <span className="rounded-full border border-gold/25 bg-gold/10 px-2.5 py-1 font-semibold text-gold tabular-nums">{formatSol(r.wonSol)} SOL</span>
                     ) : (
                       <span className="text-muted/60">—</span>
                     )}

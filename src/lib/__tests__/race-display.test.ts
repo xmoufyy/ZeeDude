@@ -46,3 +46,33 @@ describe("Countdown", () => {
     expect(text(renderToStaticMarkup(createElement(Countdown, props)))).toContain("being locked in");
   });
 });
+
+describe("PrizeBreakdown", () => {
+  it("writes ordinals correctly past 20th place", async () => {
+    const { PrizeBreakdown } = await import("@/components/prize-breakdown");
+    const split = Array.from({ length: 25 }, () => 4);
+    const html = text(renderToStaticMarkup(createElement(PrizeBreakdown, { prizes: computePlacePrizes(25, split), poolSol: 25 })));
+    for (const place of ["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "24th"]) {
+      expect(html).toContain(`${place} place`);
+    }
+    expect(html).not.toMatch(/2[123]th place/);
+  });
+});
+
+describe("LeaderboardTable", () => {
+  const prizeRow = (rank: number, prizeSol: number) => ({ rank, name: `P${rank}`, wageredSol: 10 - rank / 10, prizeSol });
+
+  it("marks where the paid places end", async () => {
+    const { LeaderboardTable } = await import("@/components/leaderboard-table");
+    const rows = [prizeRow(4, 0.8), prizeRow(5, 0.6), prizeRow(6, 0)];
+    const html = text(renderToStaticMarkup(createElement(LeaderboardTable, { rows, caption: "x" })));
+    expect(html).toMatch(/P5 .* Prize places end here .* P6/);
+  });
+
+  it("shows the given empty message, so a finished race doesn't invite players to climb it", async () => {
+    const { LeaderboardTable } = await import("@/components/leaderboard-table");
+    const html = text(renderToStaticMarkup(createElement(LeaderboardTable, { rows: [], caption: "x", emptyText: "Nobody wagered in this race." })));
+    expect(html).toContain("Nobody wagered in this race.");
+    expect(html).not.toContain("Be the first");
+  });
+});

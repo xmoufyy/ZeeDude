@@ -106,3 +106,18 @@ describe("assignPrizes", () => {
     expect(prized.map((e) => e.prizeSol)).toEqual([5]);
   });
 });
+
+describe("computePlacePrizes with a split that's a hair off 100", () => {
+  it("still pays out exactly the pool", () => {
+    // isValidSplit accepts these (within 1e-6 of 100); dividing by 100 paid 90 lamports too many / 88 too few.
+    for (const split of [[50.0000009, 30, 20], [49.9999991, 30, 20]]) {
+      expect(isValidSplit(split)).toBe(true);
+      const prizes = computePlacePrizes(10, split);
+      expect(sum(prizes.map((p) => solToLamports(p.sol)))).toBe(solToLamports(10));
+    }
+  });
+
+  it("gives the same prizes as before for a split that adds up to exactly 100", () => {
+    expect(computePlacePrizes(10, [40, 20, 12, 8, 6, 4, 3, 3, 2, 2]).map((p) => p.sol)).toEqual([4, 2, 1.2, 0.8, 0.6, 0.4, 0.3, 0.3, 0.2, 0.2]);
+  });
+});

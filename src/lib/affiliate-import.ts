@@ -168,6 +168,26 @@ export async function saveAffiliateSnapshot(rows: AffiliateRow[], takenAt: Date)
   );
 }
 
+/**
+ * Recomputes an open period from the stored copies, e.g. after its dates were
+ * edited, so its totals use the baseline for the new window. Periods whose
+ * board doesn't come from affiliate copies are left alone (returns null). With
+ * no usable copy for the new dates the totals are kept, and the retained-totals
+ * warning explains it, as when a copy is deleted.
+ */
+export async function recomputeAffiliatePeriod(periodId: string): Promise<PeriodOutcome | null> {
+  return serializable(
+    async (tx) => {
+      const period = await tx.period.findUnique({ where: { id: periodId } });
+      if (!period || period.finalizedAt || !(await affiliateEntry(tx, periodId))) return null;
+      const outcome = await computePeriod(tx, period);
+      await apply(tx, [outcome]);
+      return outcome;
+    },
+    { timeoutMs: 60_000 },
+  );
+}
+
 /** Deletes a mistaken snapshot and recomputes the open periods it touched. */
 export async function deleteAffiliateSnapshot(snapshotId: string): Promise<PeriodOutcome[]> {
   return serializable(

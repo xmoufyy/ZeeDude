@@ -74,3 +74,14 @@ describe("rankEntries", () => {
     expect(ranked[0].wageredSol).toBeCloseTo(3.5);
   });
 });
+
+describe("rankEntries tie order", () => {
+  it("orders tied names that only differ by accents the same way whatever the input order", () => {
+    const a = [
+      { username: "José", wageredSol: 5 },
+      { username: "Jose", wageredSol: 5 },
+    ];
+    const names = (rows: typeof a) => rankEntries(rows).map((r) => r.username);
+    expect(names(a)).toEqual(names([...a].reverse()));
+  });
+});

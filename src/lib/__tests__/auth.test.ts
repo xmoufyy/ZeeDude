@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "../password";
-import { createSessionToken, readSessionToken } from "../session";
+import { createSessionToken, readCookie, readSessionToken } from "../session";
 
 describe("password hashing", () => {
   it("verifies the right password and rejects others", async () => {
@@ -48,5 +48,19 @@ describe("session tokens", () => {
     expect(readSessionToken(`${token}.extra`, key, now)).toBeNull();
     expect(readSessionToken(undefined, key, now)).toBeNull();
     expect(readSessionToken("garbage", key, now)).toBeNull();
+  });
+});
+
+describe("readCookie", () => {
+  it("reads one cookie out of a Cookie header and decodes it", () => {
+    expect(readCookie("a=1; zd_admin=x%2Ey; b=2", "zd_admin")).toBe("x.y");
+    expect(readCookie("a=1", "zd_admin")).toBeUndefined();
+  });
+
+  it("treats a value that isn't valid percent-encoding as missing instead of throwing", () => {
+    // decodeURIComponent("%") throws URIError, which used to 500 every admin and profile page.
+    expect(() => readCookie("zd_admin=%", "zd_admin")).not.toThrow();
+    expect(readCookie("zd_admin=%", "zd_admin")).toBeUndefined();
+    expect(readCookie("zd_player=%E0%A4%A", "zd_player")).toBeUndefined();
   });
 });

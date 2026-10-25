@@ -17,6 +17,25 @@ export function createSessionToken(key: string, now: number, ttlMs: number, sub?
   return `${body}.${sign(body, key)}`;
 }
 
+/**
+ * One cookie's value from a raw Cookie header. A value that isn't valid
+ * percent-encoding (e.g. a hand-edited `name=%`) reads as missing instead of
+ * throwing, so a bad cookie just means "signed out".
+ */
+export function readCookie(header: string, name: string): string | undefined {
+  const raw = header
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+  if (!raw) return undefined;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return undefined;
+  }
+}
+
 export function readSessionToken(token: string | undefined, key: string, now: number): SessionPayload | null {
   if (!token) return null;
   const [body, signature, extra] = token.split(".");

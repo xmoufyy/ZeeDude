@@ -147,6 +147,8 @@ export function fromZonedInputValue(value: string, timeZone = DEFAULT_SCHEDULE.t
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
   if (!match) return null;
   const [year, month, day, hour, minute] = match.slice(1).map(Number);
-  if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) return null;
+  // Reject dates that don't exist (Feb 31 would otherwise roll over into March).
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth || hour > 23 || minute > 59) return null;
   return zonedTimeToUtc(year, month, day, hour, minute, timeZone);
 }

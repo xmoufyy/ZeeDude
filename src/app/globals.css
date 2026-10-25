@@ -1,22 +1,33 @@
 @import "tailwindcss";
 
-/* Palette pulled from the ZeeDude logo: molten gold lettering on a cosmic
-   purple/magenta field, with a cyan secondary accent. */
+/* Palette pulled from the ZeeDude art: molten gold lettering on a cosmic
+   purple/magenta field (logo), plus the flame orange and stage lights of the
+   Dude-munity banner, with cyan as the secondary accent. */
 @theme {
   --color-ink: #07050d;
   --color-night: #0f0a1a;
   --color-panel: #150e24;
   --color-panel-2: #1d1432;
+  --color-raised: #271b42;
   --color-line: rgb(255 255 255 / 0.09);
+  --color-line-strong: rgb(255 255 255 / 0.16);
 
   --color-gold: #ffc83d;
   --color-gold-light: #ffe8a3;
   --color-gold-deep: #e48f0b;
+  --color-flame: #ff7a1a;
   --color-magenta: #e046f5;
   --color-violet: #8a3dff;
   --color-cyan: #33e3f0;
   --color-silver: #dfe3ee;
   --color-bronze: #ef9a5d;
+
+  /* Status colours stay apart from the brand gold, so a warning never reads
+     as a prize. Every use pairs them with an icon or label, never colour alone. */
+  --color-success: #4ade9b;
+  --color-warning: #ffa94d;
+  --color-danger: #ff6b7d;
+  --color-info: #33e3f0;
 
   --color-text: #f6f1ff;
   --color-muted: #b3a6cf;
@@ -27,6 +38,7 @@
   --animate-rise: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-glow: glow 3.2s ease-in-out infinite;
   --animate-shine: shine 6s linear infinite;
+  --animate-orbit: orbit 40s linear infinite;
 
   @keyframes rise {
     from {
@@ -52,27 +64,41 @@
       background-position: 200% center;
     }
   }
+  @keyframes orbit {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 }
 
 html {
   color-scheme: dark;
   scroll-behavior: smooth;
+  /* Keep anchors and keyboard focus clear of the sticky header. */
+  scroll-padding-top: 5.5rem;
 }
 
 body {
   background-color: var(--color-ink);
   color: var(--color-text);
   font-family: var(--font-sans);
-  /* Cosmic glow at the top + a sparse star field, all CSS (no image cost). */
+  /* Stage lights over a cosmic field, like the banner, plus a sparse star
+     field. All CSS, no image cost. */
   background-image:
-    radial-gradient(1200px 600px at 50% -200px, rgb(138 61 255 / 0.32), transparent 70%),
-    radial-gradient(700px 400px at 85% 10%, rgb(224 70 245 / 0.14), transparent 70%),
+    radial-gradient(1200px 620px at 50% -220px, rgb(138 61 255 / 0.34), transparent 70%),
+    radial-gradient(640px 420px at 92% 0%, rgb(224 70 245 / 0.16), transparent 70%),
+    radial-gradient(560px 380px at 4% 6%, rgb(255 122 26 / 0.1), transparent 70%),
     radial-gradient(1.5px 1.5px at 20% 30%, rgb(255 255 255 / 0.5), transparent),
     radial-gradient(1px 1px at 70% 20%, rgb(255 255 255 / 0.4), transparent),
     radial-gradient(1px 1px at 40% 80%, rgb(255 255 255 / 0.3), transparent),
     radial-gradient(1.5px 1.5px at 90% 60%, rgb(255 255 255 / 0.35), transparent);
-  background-size: auto, auto, 380px 380px, 260px 260px, 320px 320px, 440px 440px;
-  background-repeat: no-repeat, no-repeat, repeat, repeat, repeat, repeat;
+  background-size: auto, auto, auto, 380px 380px, 260px 260px, 320px 320px, 440px 440px;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat, repeat, repeat, repeat;
+}
+
+::selection {
+  background: rgb(255 200 61 / 0.3);
+  color: var(--color-text);
 }
 
 /* Molten-gold text like the logo lettering. */
@@ -89,12 +115,6 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-
-.panel {
-  background: linear-gradient(180deg, rgb(29 20 50 / 0.85), rgb(21 14 36 / 0.85));
-  border: 1px solid var(--color-line);
-  border-radius: 1.25rem;
 }
 
 :focus-visible {
@@ -114,21 +134,101 @@ body {
   }
 }
 
-/* Admin form controls */
+/* Shared components. Utilities placed on the same element still win. */
 @layer components {
+  /* Surfaces: .panel for every card; .panel-feature adds the gold-to-violet
+     rim for the one or two things on a page that matter most. */
+  .panel {
+    background: linear-gradient(180deg, rgb(29 20 50 / 0.88), rgb(21 14 36 / 0.88));
+    border: 1px solid var(--color-line);
+    border-radius: 1.25rem;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 12px 32px -18px rgb(0 0 0 / 0.8);
+  }
+  .panel-feature {
+    border-color: transparent;
+    background:
+      linear-gradient(180deg, rgb(36 24 62 / 0.96), rgb(21 14 36 / 0.96)) padding-box,
+      linear-gradient(135deg, rgb(255 200 61 / 0.7), rgb(224 70 245 / 0.45) 45%, rgb(138 61 255 / 0.5)) border-box;
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold tracking-[0.2em] text-magenta uppercase;
+  }
+  .section-title {
+    @apply font-display text-2xl leading-tight sm:text-3xl;
+  }
+  .label-caps {
+    @apply text-xs font-semibold tracking-widest text-muted uppercase;
+  }
+
+  /* Status badges and notices: text + icon carry the meaning, colour backs it up. */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-nowrap;
+  }
+  .badge-success {
+    @apply border-success/30 bg-success/10 text-success;
+  }
+  .badge-warning {
+    @apply border-warning/35 bg-warning/10 text-warning;
+  }
+  .badge-danger {
+    @apply border-danger/35 bg-danger/10 text-danger;
+  }
+  .badge-info {
+    @apply border-info/30 bg-info/10 text-info;
+  }
+  .badge-neutral {
+    @apply border-line-strong bg-white/5 text-muted;
+  }
+  .badge-gold {
+    @apply border-gold/30 bg-gold/10 text-gold;
+  }
+
+  .notice {
+    @apply flex gap-3 rounded-xl border px-4 py-3 text-sm text-text;
+  }
+  .notice-warning {
+    @apply border-warning/40 bg-warning/10;
+  }
+  .notice-danger {
+    @apply border-danger/40 bg-danger/10;
+  }
+  .notice-success {
+    @apply border-success/35 bg-success/10;
+  }
+  .notice-info {
+    @apply border-info/30 bg-info/[0.07];
+  }
+
+  /* Forms */
   .field-label {
     @apply mb-1 block text-xs font-semibold tracking-wider text-muted uppercase;
   }
   .input {
-    @apply w-full rounded-lg border border-line bg-ink/70 px-3 py-2 text-sm text-text placeholder:text-muted/60 focus:border-gold/60 focus:outline-none focus:ring-2 focus:ring-gold/40;
+    @apply w-full rounded-lg border border-line bg-ink/70 px-3 py-2 text-sm text-text transition-colors placeholder:text-muted/60 hover:border-line-strong focus:border-gold/60 focus:ring-2 focus:ring-gold/40 focus:outline-none aria-invalid:border-danger/60;
   }
+
+  /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line px-3.5 py-2 text-sm font-semibold text-text transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line-strong px-3.5 py-2 text-sm font-semibold text-text transition select-none hover:border-white/25 hover:bg-white/5 active:translate-y-px disabled:pointer-events-none disabled:opacity-50;
   }
   .btn-primary {
-    @apply border-transparent bg-gradient-to-b from-gold to-gold-deep text-ink hover:brightness-110;
+    @apply border-transparent bg-gradient-to-b from-gold to-gold-deep text-ink shadow-[0_8px_24px_-10px] shadow-gold/70 hover:border-transparent hover:brightness-110;
+  }
+  .btn-brand {
+    @apply border-transparent bg-gradient-to-b from-violet to-magenta text-white shadow-[0_10px_32px_-12px] shadow-magenta hover:border-transparent hover:brightness-110;
   }
   .btn-danger {
-    @apply border-red-400/40 text-red-300 hover:bg-red-400/10;
+    @apply border-danger/40 text-danger hover:border-danger/60 hover:bg-danger/10;
+  }
+
+  /* Tables */
+  .table-head {
+    @apply border-b border-line bg-white/[0.02] text-[0.7rem] tracking-widest text-muted uppercase sm:text-xs;
+  }
+  .rank-chip {
+    @apply inline-grid size-8 place-items-center rounded-lg border border-line bg-white/5 font-display text-sm text-muted;
   }
 }

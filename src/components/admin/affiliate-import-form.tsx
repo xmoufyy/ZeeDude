@@ -76,7 +76,7 @@ function PeriodPreview({ preview: p }: { preview: AffiliatePeriodPreview }) {
         </p>
       </div>
       {p.warnings.length > 0 && (
-        <ul className="list-disc space-y-1 rounded-lg bg-amber-400/10 py-2 pr-3 pl-7 text-xs text-amber-200">
+        <ul className="list-disc space-y-1 rounded-lg bg-warning/10 py-2 pr-3 pl-7 text-xs text-warning">
           {p.warnings.map((w) => (
             <li key={w}>{w}</li>
           ))}

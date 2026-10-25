@@ -55,7 +55,7 @@ export function Podium({ rows, placePrizes }: { rows: LeaderboardRow[]; placePri
           >
             <article
               className={`panel relative flex flex-col items-center px-2 pt-8 pb-4 text-center sm:px-5 sm:pt-10 sm:pb-6 ${place.glow} ${
-                first ? "bg-gradient-to-b from-violet/30 to-panel" : ""
+                first ? "panel-feature" : ""
               }`}
             >
               {first && <Crown className="absolute -top-6 h-10 w-14 drop-shadow-[0_4px_12px_rgb(255_200_61/0.5)] sm:-top-7 sm:h-12 sm:w-18" />}
@@ -74,7 +74,7 @@ export function Podium({ rows, placePrizes }: { rows: LeaderboardRow[]; placePri
               <h3 className="mt-3 w-full truncate text-sm font-semibold sm:text-lg">
                 {row?.name ?? "Open spot"}
               </h3>
-              <p className="mt-2 text-[0.65rem] font-semibold tracking-widest text-muted uppercase sm:text-xs">Wagered</p>
+              <p className="label-caps mt-2 text-[0.65rem] sm:text-xs">Wagered</p>
               <p className="font-display text-sm text-text sm:text-xl">
                 {row ? (
                   <>

@@ -2,7 +2,8 @@ import "server-only";
 import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
 import { db } from "./db";
-import { createSessionToken, readSessionToken } from "./session";
+import { pickClientIp } from "./login-limiter";
+import { createSessionToken, readCookie, readSessionToken } from "./session";
 import { isSolanaAddress, verifyWalletSignature } from "./solana-auth";
 import { ChallengeError, createWalletChallenge } from "./wallet-challenge";
 
@@ -31,13 +32,8 @@ export async function currentPlayerWallet(): Promise<string | null> {
   } catch {
     return null;
   }
-  const header = (await headers()).get("cookie") ?? "";
-  const token = header
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${COOKIE_NAME}=`))
-    ?.slice(COOKIE_NAME.length + 1);
-  const payload = readSessionToken(token && decodeURIComponent(token), key, Date.now());
+  const token = readCookie((await headers()).get("cookie") ?? "", COOKIE_NAME);
+  const payload = readSessionToken(token, key, Date.now());
   return payload?.sub && isSolanaAddress(payload.sub) ? payload.sub : null;
 }
 
@@ -45,9 +41,10 @@ export async function currentPlayerWallet(): Promise<string | null> {
 export async function startWalletSignIn(wallet: string): Promise<{ nonce: string; message: string }> {
   if (!isSolanaAddress(wallet)) throw new PlayerAuthError("That doesn't look like a Solana wallet address.");
   signingKey(); // fail early if sessions can't be issued
-  const host = (await headers()).get("host") ?? new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost").host;
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host") ?? new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost").host;
   try {
-    return await createWalletChallenge(wallet, host);
+    return await createWalletChallenge(wallet, host, new Date(), pickClientIp(requestHeaders));
   } catch (error) {
     if (error instanceof ChallengeError) throw new PlayerAuthError(error.message);
     throw error;

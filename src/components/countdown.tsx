@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Notice } from "./notice";
 
 type Props = {
   startsAt: string;
@@ -67,18 +68,18 @@ export function Countdown({ startsAt, endsAt, serverNow, finalized = false }: Pr
 
   if (ended) {
     return (
-      <p className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-center font-semibold text-gold">
+      <Notice tone="info" className="font-semibold">
         {finalized ? (
           <>
             This race has ended.{" "}
-            <Link href="/history" className="underline underline-offset-4 hover:text-gold-light">
+            <Link href="/history" className="text-cyan underline underline-offset-4 hover:text-text">
               See the winners
             </Link>
           </>
         ) : (
           "This race has ended. Final results are being locked in."
         )}
-      </p>
+      </Notice>
     );
   }
 
@@ -89,14 +90,15 @@ export function Countdown({ startsAt, endsAt, serverNow, finalized = false }: Pr
 
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold tracking-[0.2em] text-muted uppercase">
-        {notStarted ? "Starts in" : "Ends in"}
-      </p>
+      <p className="label-caps mb-2 tracking-[0.2em]">{notStarted ? "Starts in" : "Ends in"}</p>
       {/* The ticking digits are hidden from screen readers; they get a calmer summary instead. */}
       <p className="sr-only">{spoken}</p>
       <div className="flex gap-2 sm:gap-3" aria-hidden="true">
         {parts.map((p) => (
-          <div key={p.label} className="panel flex min-w-0 flex-1 flex-col items-center px-2 py-2.5 sm:min-w-18 sm:px-3">
+          <div
+            key={p.label}
+            className="flex min-w-0 flex-1 flex-col items-center rounded-xl border border-line bg-ink/55 px-2 py-2.5 shadow-[inset_0_1px_0] shadow-white/5 sm:min-w-18 sm:px-3"
+          >
             <span className="font-display text-2xl tabular-nums text-text sm:text-3xl">
               {String(p.value).padStart(2, "0")}
             </span>

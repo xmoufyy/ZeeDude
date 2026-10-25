@@ -26,7 +26,7 @@ async function LoginBody() {
   await connection();
   if (isAuthConfigured()) return <LoginForm />;
   return (
-    <p className="rounded-lg bg-red-400/10 px-3 py-2 text-sm text-red-300">
+    <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
       Admin login isn&apos;t set up yet. Run <code className="text-text">npm run admin:password -- &quot;your password&quot;</code>{" "}
       and restart the server. See the README for production setup.
     </p>

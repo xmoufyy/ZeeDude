@@ -8,14 +8,20 @@
 // condition so `server-only` modules load:
 //   node --conditions=react-server --import tsx scripts/verify-concurrency.ts
 
-import { finalizePeriod, reopenPeriod, setPayoutPaid, snapshotPeriod } from "../src/lib/admin-ops";
-import { deleteAffiliateSnapshot, previewAffiliateSnapshot, retainedAffiliateWarning, saveAffiliateSnapshot } from "../src/lib/affiliate-import";
+import { finalizePeriod, reopenPeriod, setPayoutPaid, snapshotPeriod, updatePeriod } from "../src/lib/admin-ops";
+import {
+  deleteAffiliateSnapshot,
+  previewAffiliateSnapshot,
+  recomputeAffiliatePeriod,
+  retainedAffiliateWarning,
+  saveAffiliateSnapshot,
+} from "../src/lib/affiliate-import";
 import { db } from "../src/lib/db";
 import { MAX_FAILURES_PER_IP, reserveLoginAttempt } from "../src/lib/login-limiter";
 import { weeklyWindow } from "../src/lib/period";
 import { reviewClaim, saveProfile } from "../src/lib/profile";
 import { ensureCurrentPeriod } from "../src/lib/refresh";
-import { createWalletChallenge, MAX_OPEN_NONCES } from "../src/lib/wallet-challenge";
+import { createWalletChallenge, MAX_OPEN_NONCES, MAX_OPEN_NONCES_PER_IP } from "../src/lib/wallet-challenge";
 
 if (process.env.VERIFY_CONCURRENCY_THROWAWAY !== "1") {
   console.error("Refusing to run: this wipes the database. Use npm run verify:concurrency or verify:postgres.");
@@ -189,6 +195,77 @@ const checks: Check[] = [
       await settle(Array.from({ length: 20 }, (_, i) => () => createWalletChallenge(`CapWallet${i}`, "verify.test")));
       const total = await db.walletNonce.count();
       if (total > MAX_OPEN_NONCES) return `${total} open challenges (cap ${MAX_OPEN_NONCES})`;
+      return null;
+    },
+  },
+  {
+    name: `parallel sign-in starts from one client -> at most ${MAX_OPEN_NONCES_PER_IP} open, other clients unaffected`,
+    async run() {
+      await wipe();
+      const results = await settle(
+        Array.from({ length: MAX_OPEN_NONCES_PER_IP + 10 }, (_, i) => () => createWalletChallenge(`IpWallet${i}`, "verify.test", new Date(), "6.6.6.6")),
+      );
+      const fromClient = await db.walletNonce.count({ where: { ip: "6.6.6.6" } });
+      if (fromClient > MAX_OPEN_NONCES_PER_IP) return `${fromClient} open challenges from one client (cap ${MAX_OPEN_NONCES_PER_IP})`;
+      if (!results.some((r) => r.status === "rejected")) return "no start over the per-client cap was refused";
+      const other = await createWalletChallenge("OtherClientWallet", "verify.test", new Date(), "7.7.7.7").then(() => null, (e) => String(e));
+      if (other) return `a different client was refused: ${other}`;
+      return null;
+    },
+  },
+  {
+    name: "a rejected name re-saved unchanged stays rejected, even after its real owner claims it",
+    async run() {
+      await wipe();
+      const faker = "FakerWallet111111111111111111111";
+      const owner = "OwnerWallet111111111111111111111";
+      await db.player.createMany({ data: [{ wallet: faker }, { wallet: owner }] });
+      await saveProfile(faker, { hideName: true, solpumpUsername: "Zed" });
+      const fakerRow = await db.player.findUniqueOrThrow({ where: { wallet: faker } });
+      await reviewClaim(fakerRow.id, "reject", "zed");
+      await saveProfile(owner, { hideName: true, solpumpUsername: "Zed" });
+      // The rejected player edits only their Discord; the form still holds "Zed".
+      const saved = await saveProfile(faker, { hideName: true, solpumpUsername: "Zed", discordUsername: "faker" }).then(
+        (r) => r,
+        (e) => String(e.message),
+      );
+      if (typeof saved === "string") return `the rejected player couldn't save their other details: ${saved}`;
+      const after = await db.player.findUniqueOrThrow({ where: { wallet: faker } });
+      if (after.solpumpStatus !== "rejected" || after.solpumpKey !== null || after.discordUsername !== "faker") {
+        return `rejected claim changed (status ${after.solpumpStatus}, key ${after.solpumpKey}, discord ${after.discordUsername})`;
+      }
+      const ownerAfter = await db.player.findUniqueOrThrow({ where: { wallet: owner } });
+      if (ownerAfter.solpumpKey !== "zed" || ownerAfter.solpumpStatus !== "pending") return "the real owner's claim was disturbed";
+      // A different name is a new claim and goes to review as before.
+      const renamed = await saveProfile(faker, { hideName: true, solpumpUsername: "Zed2" });
+      if (!renamed.claimChanged || renamed.status !== "pending") return `a new name wasn't sent for review (${renamed.status})`;
+      return null;
+    },
+  },
+  {
+    name: "editing a period's dates recalculates its SolPump totals from the new start",
+    async run() {
+      await wipe();
+      const now = Date.now();
+      const start = new Date(now - 3 * DAY);
+      const period = await db.period.create({
+        data: { name: "Edited dates", startsAt: start, endsAt: new Date(now + 4 * DAY), prizePoolSol: 10, payoutSplit: SPLIT },
+      });
+      const after = (ms: number) => new Date(start.getTime() + ms);
+      await saveAffiliateSnapshot([{ username: "Fay", lifetimeSol: 10 }], after(60_000));
+      await saveAffiliateSnapshot([{ username: "Fay", lifetimeSol: 15 }], after(DAY));
+      await saveAffiliateSnapshot([{ username: "Fay", lifetimeSol: 18 }], after(2 * DAY));
+      const wagered = async () => (await db.wagerEntry.findFirst({ where: { periodId: period.id } }))?.wageredSol;
+      if ((await wagered()) !== 8) return `setup: expected 18 - 10 = 8 SOL, got ${await wagered()}`;
+
+      // The admin corrects the start to the second copy's time: the baseline must move with it.
+      const input = { name: period.name, startsAt: after(DAY), endsAt: period.endsAt, prizePoolSol: 10, payoutSplit: JSON.parse(SPLIT) as number[] };
+      const { datesChanged } = await updatePeriod(period.id, input);
+      if (!datesChanged) return "the date change wasn't reported";
+      await recomputeAffiliatePeriod(period.id);
+      if ((await wagered()) !== 3) return `expected 18 - 15 = 3 SOL after moving the start, got ${await wagered()}`;
+      const { datesChanged: again } = await updatePeriod(period.id, { ...input, name: "Renamed" });
+      if (again) return "a rename was reported as a date change";
       return null;
     },
   },
