@@ -7,7 +7,7 @@ import { gapsToNextPlace, hallOfFame, type Move, rankMoves } from "./board-stats
 import { approvedNamePreferences } from "./profile";
 import { normalizeUsername } from "./ranking";
 import { computePlacePrizes, type PlacePrize } from "./payouts";
-import { computeStandings, parseSplit, type StandingRow } from "./standings";
+import { computeStandings, parseSplit, publishedStandings, type StandingRow } from "./standings";
 
 export const LEADERBOARD_TAG = "leaderboard";
 
@@ -101,15 +101,12 @@ async function buildView(period: PeriodRecord): Promise<LeaderboardView> {
 
   if (period.finalizedAt) {
     // Finished periods are shown exactly as they were locked in.
-    const [snapshot, payouts] = await Promise.all([
-      db.snapshot.findFirst({
-        where: { periodId: period.id, isFinal: true },
-        orderBy: { takenAt: "desc" },
-      }),
+    const [published, payouts] = await Promise.all([
+      publishedStandings(period),
       db.payout.findMany({ where: { periodId: period.id } }),
     ]);
     paidBy = new Map(payouts.map((p) => [p.username, p.paid]));
-    ranked = snapshot ? (JSON.parse(snapshot.data) as SnapshotRow[]) : await computeStandings(period);
+    ranked = published;
   } else {
     ranked = await computeStandings(period);
     const recent = await db.snapshot.findMany({

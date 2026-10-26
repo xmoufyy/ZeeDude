@@ -6,6 +6,7 @@ import { Suspense } from "react";
 
 const LINKS = [
   { href: "/admin", label: "Dashboard" },
+  { href: "/admin/leaderboard", label: "Leaderboard" },
   { href: "/admin/periods", label: "Periods" },
   { href: "/admin/affiliate", label: "SolPump import" },
   { href: "/admin/players", label: "Players" },

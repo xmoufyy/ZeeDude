@@ -13,6 +13,24 @@ export function parseSplit(json: string): number[] {
   return value;
 }
 
+/**
+ * A period's standings as published: the locked final snapshot once it has
+ * ended (so later edits or bans don't change history), otherwise computed live.
+ */
+export async function publishedStandings(
+  period: { id: string; prizePoolSol: number; payoutSplit: string; finalizedAt: Date | null },
+  client: DbClient = db,
+): Promise<StandingRow[]> {
+  if (period.finalizedAt) {
+    const snapshot = await client.snapshot.findFirst({
+      where: { periodId: period.id, isFinal: true },
+      orderBy: { takenAt: "desc" },
+    });
+    if (snapshot) return JSON.parse(snapshot.data) as StandingRow[];
+  }
+  return computeStandings(period, client);
+}
+
 /** Current standings for a period from its wager entries, with exclusions applied. */
 export async function computeStandings(
   period: { id: string; prizePoolSol: number; payoutSplit: string },

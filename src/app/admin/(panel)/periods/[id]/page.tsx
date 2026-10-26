@@ -209,7 +209,12 @@ async function PeriodDetail({ params }: Pick<PageProps<"/admin/periods/[id]">, "
       <section className="space-y-3" aria-labelledby="standings-heading">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="standings-heading" className="font-display text-xl">{finalized ? "Live data (locked results above)" : "Standings preview"}</h2>
-          <p className="text-sm text-muted">{standings.length} ranked · real usernames (admins only)</p>
+          <p className="text-sm text-muted">
+            {standings.length} ranked · real usernames (admins only) ·{" "}
+            <Link href={`/admin/leaderboard?period=${period.id}`} className="text-cyan hover:underline">
+              Search &amp; export
+            </Link>
+          </p>
         </div>
         <div className="panel overflow-x-auto">
           <table className="w-full min-w-[44rem] text-left text-sm">
