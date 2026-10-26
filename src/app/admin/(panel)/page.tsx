@@ -103,9 +103,14 @@ async function Dashboard() {
                 {current._count.entries} players · {formatSol(current.prizePoolSol)} SOL pool · last data update{" "}
                 {current.dataUpdatedAt ? formatPeriodDate(current.dataUpdatedAt) : "never"}
               </p>
-              <Link href={`/admin/periods/${current.id}`} className="btn btn-primary">
-                Import data / edit
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/admin/periods/${current.id}`} className="btn btn-primary">
+                  Import data / edit
+                </Link>
+                <Link href={`/admin/leaderboard?period=${current.id}`} className="btn">
+                  Search &amp; export standings
+                </Link>
+              </div>
             </>
           ) : (
             <>

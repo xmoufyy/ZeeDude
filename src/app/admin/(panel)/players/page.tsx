@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { reviewClaimAction } from "../../actions";
 import { ActionForm } from "@/components/admin/action-form";
@@ -72,6 +73,10 @@ async function Players() {
                   {p.solpumpUsername && (
                     <span className="mt-1 block text-xs text-muted">
                       {known.has(normalizeUsername(p.solpumpUsername)) ? "✓ appears in imported wager data" : "not seen in wager data yet"}
+                      {" · "}
+                      <Link href={`/admin/leaderboard?q=${encodeURIComponent(p.solpumpUsername)}`} className="text-cyan hover:underline">
+                        Find on leaderboard
+                      </Link>
                     </span>
                   )}
                   {p.displayName && <span className="block text-xs text-muted">Display: {p.displayName}</span>}
